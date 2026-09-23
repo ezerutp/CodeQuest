@@ -10,6 +10,7 @@ from codequest.core.games.base import Evaluation, Outcome
 from codequest.core.knowledge.models import Concept
 from codequest.ui.formatting import inline_code_html
 from codequest.ui.icons import icon
+from codequest.ui.pages.learn.ai_explanation import AIExplanationBox, paragraphs_html
 from codequest.ui.theme import current_palette
 from codequest.ui.widgets import Card, IconText
 from codequest.ui.widgets.style_utils import set_style_property
@@ -25,12 +26,14 @@ _TITLES = {
 
 class FeedbackPanel(Card):
     open_class = Signal(str)
+    explain_requested = Signal(object)  # Evaluation
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent, padding=22)
         self.body.setSpacing(12)
         self._concept: Concept | None = None
         self._class_name = ""
+        self._evaluation: Evaluation | None = None
 
         header = QHBoxLayout()
         header.setSpacing(10)
@@ -60,6 +63,12 @@ class FeedbackPanel(Card):
         analogy.body.addWidget(self._analogy)
         self.body.addWidget(analogy)
 
+        self._ai = AIExplanationBox()
+        self._ai.requested.connect(lambda: self._evaluation and self.explain_requested.emit(self._evaluation))
+        self._ai.hide()
+        self._ai_enabled = False
+        self.body.addWidget(self._ai)
+
         actions = QHBoxLayout()
         youtube = QPushButton("Buscar en YouTube")
         youtube.setIcon(icon("youtube"))
@@ -78,6 +87,9 @@ class FeedbackPanel(Card):
         concept = evaluation.question.concept
         self._concept = concept
         self._class_name = evaluation.question.class_name
+        self._evaluation = evaluation
+        self._ai.reset()
+        self._ai.setVisible(self._ai_enabled)
 
         title, tone, icon_name = _TITLES[evaluation.outcome]
         palette = current_palette()
@@ -88,9 +100,27 @@ class FeedbackPanel(Card):
         set_style_property(self, "variant", "success" if tone == "success" else "danger" if tone == "danger" else None)
 
         self._concept_title.setText(inline_code_html(f"`{concept.title}`"))
-        paragraphs = [p.strip() for p in concept.explanation.split("\n\n") if p.strip()]
-        self._explanation.setText("".join(f"<p>{inline_code_html(p)}</p>" for p in paragraphs))
+        self._explanation.setText(paragraphs_html(concept.explanation))
         self._analogy.setText(inline_code_html(concept.analogy))
+
+    # --- IA ------------------------------------------------------------------------
+
+    def set_ai_available(self, available: bool, provider_name: str | None) -> None:
+        self._ai_enabled = available
+        self._ai.set_provider(provider_name or "la IA")
+        self._ai.setVisible(available and self._evaluation is not None)
+
+    def current_key(self) -> str | None:
+        return self._evaluation.question.key if self._evaluation else None
+
+    def show_ai_loading(self) -> None:
+        self._ai.show_loading()
+
+    def show_ai_answer(self, text: str) -> None:
+        self._ai.show_answer(text)
+
+    def show_ai_error(self, message: str) -> None:
+        self._ai.show_error(message)
 
     def _open_youtube(self) -> None:
         if self._concept is not None:

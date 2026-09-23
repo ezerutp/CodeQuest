@@ -26,6 +26,7 @@ class GameView(QWidget):
     finished = Signal(object)  # GameSession
     open_class = Signal(str)  # nombre cualificado
     content_changed = Signal()  # la altura cambió: la página debe reajustar su scroll
+    explain_requested = Signal(object)  # Evaluation
 
     def __init__(self, load_snippet: SnippetLoader, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -65,6 +66,7 @@ class GameView(QWidget):
         layout.addLayout(self._build_actions())
         self._feedback = FeedbackPanel()
         self._feedback.open_class.connect(self.open_class)
+        self._feedback.explain_requested.connect(self.explain_requested)
         self._feedback.hide()
         layout.addWidget(self._feedback)
         self._install_shortcuts()
@@ -114,6 +116,26 @@ class GameView(QWidget):
         QShortcut(QKeySequence("0"), self).activated.connect(self._skip)
         for key in ("Return", "Enter"):
             QShortcut(QKeySequence(key), self).activated.connect(self._go_next)
+
+    # --- IA ------------------------------------------------------------------------
+
+    def set_ai_available(self, available: bool, provider_name: str | None) -> None:
+        self._feedback.set_ai_available(available, provider_name)
+
+    def show_ai_loading(self, question_key: str) -> None:
+        if self._feedback.current_key() == question_key:
+            self._feedback.show_ai_loading()
+
+    def show_ai_answer(self, question_key: str, text: str) -> None:
+        # Si el estudiante ya pasó a otra pregunta, la respuesta llega tarde: se descarta.
+        if self._feedback.current_key() == question_key and self._session and self._session.is_answered:
+            self._feedback.show_ai_answer(text)
+            self.content_changed.emit()
+
+    def show_ai_error(self, question_key: str, message: str) -> None:
+        if self._feedback.current_key() == question_key:
+            self._feedback.show_ai_error(message)
+            self.content_changed.emit()
 
     # --- ciclo de juego ---------------------------------------------------------
 

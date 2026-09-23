@@ -51,6 +51,10 @@ QFrame#Card[variant="analogy"] {
     background: ${accent_soft};
     border-color: ${accent_soft};
 }
+QFrame#Card[variant="ai"] {
+    background: ${surface_raised};
+    border: 1px solid ${accent};
+}
 #FeedbackTitle { font-size: 16px; font-weight: 700; }
 #FeedbackTitle[tone="success"] { color: ${success}; }
 #FeedbackTitle[tone="danger"] { color: ${danger}; }

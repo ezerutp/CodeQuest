@@ -16,6 +16,7 @@ class LearnPage(Page):
     play_again = Signal()
     go_home = Signal()
     open_class = Signal(str)
+    explain_requested = Signal(object)  # Evaluation
 
     def __init__(self, load_snippet: SnippetLoader, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -39,6 +40,7 @@ class LearnPage(Page):
         self._game = GameView(load_snippet)
         self._game.finished.connect(self._show_summary)
         self._game.open_class.connect(self.open_class)
+        self._game.explain_requested.connect(self.explain_requested)
         self._game.content_changed.connect(self.content_changed)
         self.layout_.addWidget(self._game)
 
@@ -48,6 +50,18 @@ class LearnPage(Page):
         self.layout_.addWidget(self._summary)
         self._views = (self._select, self._game, self._summary)
         self._show(self._select)
+
+    def set_ai_available(self, available: bool, provider_name: str | None) -> None:
+        self._game.set_ai_available(available, provider_name)
+
+    def show_ai_loading(self, question_key: str) -> None:
+        self._game.show_ai_loading(question_key)
+
+    def show_ai_answer(self, question_key: str, text: str) -> None:
+        self._game.show_ai_answer(question_key, text)
+
+    def show_ai_error(self, question_key: str, message: str) -> None:
+        self._game.show_ai_error(question_key, message)
 
     def set_model(self, model: ProjectModel | None) -> None:
         if model is None:  # cambió el proyecto: la ronda en curso ya no aplica

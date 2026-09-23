@@ -18,12 +18,14 @@ from codequest.app.constants import APP_NAME
 from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.package_tree import display_name
+from codequest.core.games.base import Evaluation
 from codequest.core.games.catalog import MULTIPLE_CHOICE, mode_info
 from codequest.core.project.models import ProjectInfo
+from codequest.services.explain_service import ExplainService
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.project_service import ProjectService
-from codequest.ui.dialogs import warn
+from codequest.ui.dialogs import confirm, warn
 from codequest.ui.navigation import PageId, Sidebar
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.concepts.page import ConceptsPage
@@ -45,12 +47,15 @@ PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
 class MainWindow(QMainWindow):
     def __init__(self, context: AppContext, service: ProjectService,
                  learning: LearningService | None = None, knowledge_dir: Path | None = None,
-                 knowledge: KnowledgeService | None = None) -> None:
+                 knowledge: KnowledgeService | None = None, explain: ExplainService | None = None) -> None:
         super().__init__()
         self._context = context
         self._service = service
         self._learning = learning or LearningService()
         self._knowledge = knowledge or KnowledgeService(self._learning.kb, store=None, provider=None)
+        self._explain = explain or ExplainService(None)
+        self._code_consent = False  # consentimiento para enviar código, por proyecto y sesión
+        self._explaining_key: str | None = None
         self._model: ProjectModel | None = None
         self._last_scope: str | None = None  # clase de la última ronda, para "Otra ronda"
 
@@ -73,6 +78,8 @@ class MainWindow(QMainWindow):
         self._learn.play_again.connect(lambda: self._start_round(self._last_scope))
         self._learn.go_home.connect(lambda: self.show_page(PageId.HOME))
         self._learn.open_class.connect(self._open_class)
+        self._learn.explain_requested.connect(self._explain_with_code)
+        self._learn.set_ai_available(self._explain.can_explain, self._explain.provider_name)
         self._add_page(PageId.LEARN, self._learn)
 
         self._explorer = ProjectExplorerPage(load_source=lambda model, cls: service.read_source(model, cls, True))
@@ -86,6 +93,9 @@ class MainWindow(QMainWindow):
         self._ai_task.progress.connect(self._concepts.show_generation_progress)
         self._ai_task.finished.connect(self._on_concepts_generated)
         self._ai_task.failed.connect(self._on_ai_task_failed)
+        self._explain_task = BackgroundTask(self)
+        self._explain_task.finished.connect(self._on_explanation_ready)
+        self._explain_task.failed.connect(self._on_explanation_failed)
         for page_id, title, description in PLACEHOLDER_PAGES:
             self._add_page(page_id, PlaceholderPage(page_id.value, title, description))
 
@@ -127,6 +137,8 @@ class MainWindow(QMainWindow):
         """Cambia el proyecto activo y lanza su análisis en segundo plano."""
         self._context = replace(self._context, project=project)
         self._model = None
+        self._explain.clear()
+        self._code_consent = False  # otro proyecto, otro código: se vuelve a preguntar
         self._apply_context()
         for page in self._pages.values():
             page.set_model(None)
@@ -172,6 +184,43 @@ class MainWindow(QMainWindow):
         warn(self, "No se pudo completar la generación con IA.", details=message)
         if self._model is not None:
             self._concepts.show_generation_result(None, self._learning.knowledge_report(self._model))
+
+    def _explain_with_code(self, evaluation: Evaluation) -> None:
+        key = evaluation.question.key
+        if self._model is None:
+            return
+        if (cached := self._explain.cached(evaluation)) is not None:
+            self._learn.show_ai_answer(key, cached)
+            return
+        try:
+            context = self._explain.build_context(self._model, evaluation)
+        except (OSError, ValueError) as exc:  # el archivo cambió o desapareció desde el análisis
+            self._learn.show_ai_error(key, f"No se pudo leer el código: {exc}")
+            return
+        if not self._code_consent:
+            items = "\n".join(f"• {line}" for line in context.summary())
+            if not confirm(
+                self, "Explícamelo con mi código",
+                f"Para explicarte este concepto con tu código se enviará a {self._explain.provider_name}:\n\n{items}",
+                details="Solo el fragmento de la pregunta va como código; del resto se envían las firmas. "
+                        "No volveré a preguntarte durante esta sesión con este proyecto.",
+                confirm_text="Enviar y explicar", icon_name="ai",
+            ):
+                return
+            self._code_consent = True
+        if not self._explain_task.start(lambda _progress, _cancel: self._explain.explain(evaluation, context)):
+            self._learn.show_ai_error(key, "Espera a que termine la explicación anterior.")
+            return
+        self._explaining_key = key
+        self._learn.show_ai_loading(key)
+
+    def _on_explanation_ready(self, text: str) -> None:
+        if self._explaining_key is not None:
+            self._learn.show_ai_answer(self._explaining_key, text)
+
+    def _on_explanation_failed(self, message: str) -> None:
+        if self._explaining_key is not None:
+            self._learn.show_ai_error(self._explaining_key, message)
 
     def _delete_concept(self, concept_id: str) -> None:
         if self._knowledge.delete(concept_id):
@@ -232,4 +281,5 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (API de Qt)
         self._runner.shutdown()
         self._ai_task.shutdown()
+        self._explain_task.shutdown()
         super().closeEvent(event)

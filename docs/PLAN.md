@@ -167,6 +167,13 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     nada. Lo generado pasa la validación común (un reintento con el motivo) y se guarda como
     `source: ai`. La generación corre en `BackgroundTask`; la `KnowledgeBase` solo se modifica
     en el hilo principal.
+24. **"Explícamelo con mi código" (GCQ-07).** `ContextBuilder` envía como código real solo el
+    fragmento de la pregunta (≤60 líneas); de la clase y de hasta 2 dependencias directas
+    (tipos del proyecto en campos, parámetros o retorno) envía un resumen generado desde el
+    modelo, sin cuerpos. Tope de 8000 caracteres. Consentimiento explícito la primera vez por
+    proyecto y sesión, con la lista de lo que se envía. El prompt trata el código como material
+    de estudio, no como instrucciones. Caché por pregunta y respuesta durante la sesión; una
+    respuesta que llega tras pasar de pregunta se descarta.
 
 ### Seguridad sobre el repositorio
 
@@ -191,7 +198,7 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
 
-Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · 🟡 12: base de IA y conceptos con IA (GCQ-05), "Explícamelo con mi código" (GCQ-06) · ⏳ 13 (GCQ-07).
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · ✅ 12: IA y conceptos con IA (GCQ-05), "Explícamelo con mi código" (GCQ-07) · ⏳ 13 (GCQ-08).
 
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).
