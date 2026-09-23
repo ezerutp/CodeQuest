@@ -1,0 +1,16 @@
+QPlainTextEdit#CodeEditor {
+    background: ${editor_bg};
+    border: 1px solid ${border};
+    border-radius: 10px;
+    color: ${text};
+    selection-background-color: ${editor_selection};
+    selection-color: ${text};
+    padding: 6px 0;
+}
+QPlainTextEdit#CodeEditor[readOnly="false"] { border-color: ${border_strong}; }
+QPlainTextEdit#CodeEditor:focus[readOnly="false"] { border-color: ${accent}; }
+
+#EditorHeader {
+    color: ${text_muted};
+    font-size: 12px;
+}

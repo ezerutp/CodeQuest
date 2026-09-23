@@ -133,6 +133,14 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
 13. **Roles adicionales** a los de la especificación: `MAPPER`, `COMPONENT` (un `@Component`
     sin otra convención) y `ANNOTATION` (anotaciones propias). `@ControllerAdvice` cuenta
     como `EXCEPTION`, y `@SpringBootApplication` como `CONFIGURATION`.
+14. **Resaltado de sintaxis sin Qt (GCQ-02).** `core/analysis/java/lexer.py` tokeniza línea a
+    línea con estado (comentario de bloque / text block abiertos); `JavaHighlighter` solo
+    asigna colores de la paleta. El lexer se prueba con pytest y servirá a otros lenguajes.
+15. **Numeración real en fragmentos.** `CodeEditor.set_code(texto, first_line=42)` numera
+    desde la línea 42 del archivo, y `highlight_lines()` usa esa misma numeración; así las
+    preguntas pueden citar "línea 42" igual que el IDE del estudiante.
+16. **Árbol de paquetes compactado** (`core/analysis/package_tree.py`): `com.example.shop`
+    se muestra como un nodo, como las carpetas compactas de VS Code.
 
 ### Seguridad sobre el repositorio
 
@@ -157,7 +165,7 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
 
-Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ⏳ resto.
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ⏳ resto.
 
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).

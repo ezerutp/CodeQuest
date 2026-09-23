@@ -6,7 +6,14 @@ from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QWidget
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QMainWindow,
+    QMessageBox,
+    QStackedWidget,
+    QWidget,
+)
 
 from codequest.app.constants import APP_NAME
 from codequest.app.context import AppContext
@@ -16,6 +23,7 @@ from codequest.services.project_service import ProjectService
 from codequest.ui.navigation import PageId, Sidebar
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.dashboard import DashboardPage
+from codequest.ui.pages.explorer.page import ProjectExplorerPage
 from codequest.ui.pages.placeholder import PlaceholderPage
 from codequest.ui.workers import AnalysisRunner
 
@@ -24,7 +32,6 @@ log = logging.getLogger(__name__)
 # Secciones aún no implementadas. El id de página coincide con el nombre de su icono.
 PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
     (PageId.LEARN, "Aprender", "Elige un modo de juego y practica con tu código."),
-    (PageId.PROJECT, "Mi proyecto", "Explora las clases de tu proyecto."),
     (PageId.PROGRESS, "Progreso", "Tu dominio por tema, XP y rachas."),
     (PageId.CONCEPTS, "Conceptos", "Las anotaciones y patrones de tu proyecto."),
     (PageId.SETTINGS, "Configuración", "IA, apariencia y datos."),
@@ -50,6 +57,10 @@ class MainWindow(QMainWindow):
         self._dashboard.continue_requested.connect(lambda: self.show_page(PageId.LEARN))
         self._dashboard.mode_selected.connect(lambda _key: self.show_page(PageId.LEARN))
         self._add_page(PageId.HOME, self._dashboard)
+        self._explorer = ProjectExplorerPage(load_source=lambda model, cls: service.read_source(model, cls, True))
+        # "Practicar esta clase" llevará al modo de juego filtrado por clase (GCQ-03).
+        self._explorer.practice_requested.connect(lambda _cls: self.show_page(PageId.LEARN))
+        self._add_page(PageId.PROJECT, self._explorer)
         for page_id, title, description in PLACEHOLDER_PAGES:
             self._add_page(page_id, PlaceholderPage(page_id.value, title, description))
 

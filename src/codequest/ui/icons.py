@@ -31,16 +31,38 @@ ICONS: dict[str, str] = {
     "mode.fix_code": "mdi6.wrench-outline",
     "mode.comparison": "mdi6.sword-cross",
     "mode.random": "mdi6.dice-5-outline",
+    "search": "mdi6.magnify",
+    "package": "mdi6.folder-outline",
+    "file": "mdi6.file-code-outline",
+    "field": "mdi6.variable",
+    "method": "mdi6.function-variant",
+    "practice": "mdi6.school-outline",
+    "role.entity": "mdi6.database-outline",
+    "role.controller": "mdi6.api",
+    "role.service": "mdi6.cog-transfer-outline",
+    "role.repository": "mdi6.archive-outline",
+    "role.dto": "mdi6.package-variant-closed",
+    "role.configuration": "mdi6.tune-variant",
+    "role.enum": "mdi6.format-list-bulleted-type",
+    "role.exception": "mdi6.alert-circle-outline",
+    "role.utility": "mdi6.tools",
+    "role.mapper": "mdi6.swap-horizontal",
+    "role.component": "mdi6.puzzle-outline",
+    "role.annotation": "mdi6.at",
+    "role.other": "mdi6.code-braces",
 }
 
 
 def icon(name: str, color: str | None = None, color_on: str | None = None) -> QIcon:
+    """Icono con color. Sin `color` usa el tono atenuado y se ilumina al activarse/marcarse
+    (navegación); con `color` mantiene ese color en todos los estados salvo deshabilitado."""
     palette = current_palette()
+    highlight = color_on or color or palette.text
     return qta.icon(
         ICONS[name],
         color=color or palette.text_muted,
-        color_on=color_on or palette.text,
-        color_active=color_on or palette.text,
+        color_on=highlight,
+        color_active=highlight,
         color_disabled=palette.text_subtle,
     )
 

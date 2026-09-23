@@ -12,6 +12,7 @@ from codequest.core.analysis.java.conventions import JavaConventionsAnalyzer
 from codequest.core.analysis.java.models import JavaClass
 from codequest.core.analysis.java.parser import RegexJavaParser
 from codequest.core.analysis.model import ProjectModel
+from codequest.core.analysis.snippets import CodeSnippet, read_snippet
 from codequest.core.analysis.spring.analyzer import SpringBootAnalyzer
 from codequest.core.project.detector import ProjectDetector
 from codequest.core.project.models import Framework, ProjectInfo
@@ -85,6 +86,13 @@ class ProjectService:
         log.info("Análisis de %s: %d archivos, %d clases, %d errores en %.2fs",
                  info.name, total, len(classes), len(errors), model.duration_seconds)
         return model
+
+    @staticmethod
+    def read_source(model: ProjectModel, cls: JavaClass, whole_file: bool = False) -> CodeSnippet:
+        """Código de una clase (o su archivo completo) para mostrarlo. Solo lectura."""
+        if whole_file:
+            return read_snippet(model.info.root, cls.file)
+        return read_snippet(model.info.root, cls.file, cls.start_line, cls.end_line)
 
     @staticmethod
     def _refine_framework(info: ProjectInfo, classes: Sequence[JavaClass]) -> ProjectInfo:

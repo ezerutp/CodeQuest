@@ -43,6 +43,18 @@ QScrollBar::handle:vertical {
     min-height: 32px;
 }
 QScrollBar::handle:vertical:hover { background: ${border_strong}; }
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+    margin: 2px;
+}
+QScrollBar::handle:horizontal {
+    background: ${border};
+    border-radius: 4px;
+    min-width: 32px;
+}
+QScrollBar::handle:horizontal:hover { background: ${border_strong}; }
+QAbstractScrollArea::corner { background: transparent; }
 QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 

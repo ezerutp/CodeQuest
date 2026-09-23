@@ -30,3 +30,10 @@ codequest = ["ui/styles/*.qss"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I"]

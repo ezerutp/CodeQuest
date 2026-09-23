@@ -1,0 +1,29 @@
+QTreeWidget, QListWidget {
+    background: transparent;
+    selection-background-color: ${accent_soft};
+    border: none;
+    color: ${text};
+    outline: none;
+    font-size: 13px;
+}
+QTreeWidget::item, QListWidget::item {
+    border-radius: 6px;
+    padding: 4px 6px;
+}
+QTreeWidget::item:hover, QListWidget::item:hover { background: ${surface_hover}; }
+QTreeWidget::item:selected, QListWidget::item:selected {
+    background: ${accent_soft};
+    color: ${text};
+}
+QTreeWidget::branch,
+QTreeWidget::branch:selected,
+QTreeWidget::branch:hover { background: transparent; }
+
+QSplitter::handle { background: transparent; }
+QSplitter::handle:hover { background: ${border}; }
+
+#MemberGroup {
+    color: ${text_subtle};
+    font-size: 11px;
+    font-weight: 700;
+}

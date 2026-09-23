@@ -1,0 +1,21 @@
+QLineEdit, QComboBox {
+    background: ${bg};
+    border: 1px solid ${border};
+    border-radius: 8px;
+    color: ${text};
+    padding: 6px 10px;
+    selection-background-color: ${editor_selection};
+}
+QLineEdit:focus, QComboBox:focus { border-color: ${accent}; }
+QLineEdit:hover, QComboBox:hover { border-color: ${border_strong}; }
+
+QComboBox::drop-down { border: none; width: 22px; }
+QComboBox QAbstractItemView {
+    background: ${surface_raised};
+    border: 1px solid ${border};
+    border-radius: 8px;
+    color: ${text};
+    outline: none;
+    padding: 4px;
+    selection-background-color: ${accent_soft};
+}
