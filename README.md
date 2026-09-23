@@ -38,10 +38,30 @@ cd mi-proyecto-spring
 python /ruta/CodeQuest/main.py
 ```
 
+## IA (opcional)
+
+CodeQuest funciona completo sin IA. Para activar las funciones con Claude:
+
+```bash
+pip install -e ".[ai]"
+export ANTHROPIC_API_KEY=...          # nunca se guarda ni se registra
+export CODEQUEST_AI_MODEL=...         # opcional; por defecto claude-opus-5
+```
+
+La IA sirve para:
+
+- **Completar la base de conocimiento** (*Conceptos → Completar con IA*): genera explicaciones
+  para las anotaciones que tu proyecto usa y CodeQuest aún no conoce. Solo envía el nombre y el
+  import de cada elemento (p. ej. `lombok.Data`), nunca código.
+- **"Explícamelo con mi código"** (tras responder una pregunta): explica el concepto sobre tu
+  código real. Envía el fragmento de la pregunta y solo las firmas de las clases relacionadas,
+  y te pide confirmación la primera vez.
+
 ## Privacidad y seguridad
 
 - CodeQuest **solo lee** el proyecto analizado; nunca escribe en él.
-- El progreso y los logs se guardan en el directorio de datos del usuario, no en el repo.
+- El progreso (SQLite) y los logs se guardan en el directorio de datos del usuario, no en el repo.
+  La base solo guarda qué preguntas respondiste y cómo, nunca tu código.
 - La API key solo se lee de la variable de entorno. Nunca se muestra, guarda ni registra.
 - Solo se enviarán fragmentos de código a la IA en los ejercicios marcados con **IA**.
 

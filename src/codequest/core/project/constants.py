@@ -16,3 +16,9 @@ RELEVANT_EXTENSIONS: Final[frozenset[str]] = frozenset({
 
 # Archivos de build más grandes que esto no se leen durante la detección.
 MAX_BUILD_FILE_BYTES: Final = 512 * 1024
+
+# Archivos de código más grandes que esto se omiten (suelen ser generados).
+MAX_SOURCE_FILE_BYTES: Final = 1024 * 1024
+
+# Límite de seguridad para no recorrer repositorios gigantes por error (p. ej. $HOME).
+MAX_SCANNED_FILES: Final = 20_000

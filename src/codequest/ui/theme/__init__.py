@@ -1,5 +1,6 @@
 from codequest.ui.theme.loader import load_stylesheet
 from codequest.ui.theme.palette import DARK, Palette
+from codequest.ui.theme.qt_palette import apply_palette
 
 
 def current_palette() -> Palette:
@@ -7,4 +8,4 @@ def current_palette() -> Palette:
     return DARK
 
 
-__all__ = ["DARK", "Palette", "current_palette", "load_stylesheet"]
+__all__ = ["DARK", "Palette", "apply_palette", "current_palette", "load_stylesheet"]

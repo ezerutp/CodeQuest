@@ -1,0 +1,11 @@
+QDialog, QMessageBox {
+    background: ${surface};
+}
+QMessageBox QLabel {
+    color: ${text};
+    font-size: 14px;
+}
+QMessageBox QLabel#qt_msgbox_informativelabel {
+    color: ${text_muted};
+}
+QMessageBox QPushButton { min-width: 96px; }

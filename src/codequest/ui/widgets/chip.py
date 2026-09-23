@@ -17,6 +17,9 @@ class Chip(QFrame):
         layout.setSpacing(5)
         if icon:
             layout.addWidget(icon_label(icon, size=13))
-        label = QLabel(text)
-        label.setObjectName("ChipText")
-        layout.addWidget(label)
+        self._label = QLabel(text)
+        self._label.setObjectName("ChipText")
+        layout.addWidget(self._label)
+
+    def set_text(self, text: str) -> None:
+        self._label.setText(text)

@@ -53,7 +53,7 @@
 
 | Capa | Paquete | Depende de | Regla |
 |------|---------|------------|-------|
-| Dominio / núcleo | `codequest.core` | solo stdlib (+ `anthropic` opcional en `core/ai/providers`) | **No importa Qt.** Testeable con pytest puro. |
+| Dominio / núcleo | `codequest.core` | stdlib + `pyyaml` (+ `anthropic` opcional en `core/ai/providers`) | **No importa Qt.** Testeable con pytest puro. |
 | Servicios de aplicación | `codequest.services` | `core` | Casos de uso: “analizar proyecto”, “siguiente ejercicio”, “registrar respuesta”. |
 | Presentación | `codequest.ui` | `services`, modelos de `core` | Widgets, páginas, workers Qt. Sin lógica de negocio. |
 
@@ -120,6 +120,67 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
    colorean con la paleta. Las maquetas de este documento usan emojis solo como ilustración.
 9. **Sin IA no hay bloqueo**: toda funcionalidad tiene un camino local; la IA solo
    mejora.
+10. **Parser por texto enmascarado (GCQ-01).** Comentarios y strings se sustituyen por
+    espacios conservando offsets; después se recorre el código contando llaves/paréntesis
+    y las regex solo se aplican a cabeceras cortas. Evita que `"{"` o un `class` en un
+    comentario rompan la estructura, y las líneas siguen siendo exactas para los snippets.
+    Coste medido: ~100 µs por método (un proyecto de 60 clases, ~50 ms).
+11. **Los roles viven en `ProjectModel.roles`, no en `JavaClass`.** Los modelos Java son
+    inmutables (seguros entre hilos) y el parser no depende de Spring.
+12. **Interfaces sin anotaciones no se clasifican por paquete**: `UserService` +
+    `UserServiceImpl (@Service)` cuentan como 1 service, no 2. Las clases de `src/test/`
+    se parsean pero no cuentan en las estadísticas.
+13. **Roles adicionales** a los de la especificación: `MAPPER`, `COMPONENT` (un `@Component`
+    sin otra convención) y `ANNOTATION` (anotaciones propias). `@ControllerAdvice` cuenta
+    como `EXCEPTION`, y `@SpringBootApplication` como `CONFIGURATION`.
+14. **Resaltado de sintaxis sin Qt (GCQ-02).** `core/analysis/java/lexer.py` tokeniza línea a
+    línea con estado (comentario de bloque / text block abiertos); `JavaHighlighter` solo
+    asigna colores de la paleta. El lexer se prueba con pytest y servirá a otros lenguajes.
+15. **Numeración real en fragmentos.** `CodeEditor.set_code(texto, first_line=42)` numera
+    desde la línea 42 del archivo, y `highlight_lines()` usa esa misma numeración; así las
+    preguntas pueden citar "línea 42" igual que el IDE del estudiante.
+16. **Árbol de paquetes compactado** (`core/analysis/package_tree.py`): `com.example.shop`
+    se muestra como un nodo, como las carpetas compactas de VS Code.
+17. **Distractores solo escritos a mano (GCQ-03).** Usar el resumen de otro concepto como
+    opción falsa puede crear ambigüedad (un `@Service` también "registra un bean"). La
+    `KnowledgeBase` valida al arrancar ≥3 distractores por concepto y un test impide que la
+    respuesta correcta sea >10 % más larga que el distractor más largo (se adivinaría).
+18. **Preguntas sin código.** `Question` guarda un `SnippetRef` (archivo, líneas, línea a
+    resaltar); el texto se lee al mostrarla. El generador es puro y testeable, y la base de
+    datos nunca guardará código.
+19. **Rondas variadas.** El generador agrupa por concepto y reparte round-robin: 10
+    controllers no producen 10 preguntas de `@RestController`.
+20. **Catálogo de modos en `core/games/catalog.py`**: dashboard y Aprender muestran lo mismo.
+21. **Base de conocimiento en YAML por capas (GCQ-04)**: integrada (`resources/knowledge/`,
+    prioritaria) + carpeta del usuario (`platformdirs`, fuentes `user`/`ai`). Cada concepto
+    declara qué anotaciones/supertipos explica (`matches`), así los conceptos de la caché son
+    autosuficientes. Todo concepto pasa la misma validación. Formato: `docs/KNOWLEDGE.md`.
+    `core` pasa a depender de `pyyaml` (con el parser C de libyaml si está disponible).
+22. **Huecos de conocimiento**: `core/knowledge/coverage.py` lista lo que el proyecto usa y no
+    tiene concepto, con su import real (`lombok.Data`). Es la entrada de GCQ-05: generar esos
+    conceptos con IA, enviando solo el nombre y el import, nunca código del proyecto.
+23. **IA (GCQ-05).** `AIProvider.complete(AIRequest) -> AIResponse` con esquema JSON opcional;
+    los errores del SDK se traducen a `AIError` (tipo + mensaje en español). `AnthropicProvider`
+    usa `claude-opus-5` (configurable con `CODEQUEST_AI_MODEL`), salida estructurada
+    (`output_config.format`) y `fallbacks: "default"` ante rechazos. La IA nunca decide `id` ni
+    `matches` de un concepto; si no conoce el elemento lo dice (`known: false`) y no se inventa
+    nada. Lo generado pasa la validación común (un reintento con el motivo) y se guarda como
+    `source: ai`. La generación corre en `BackgroundTask`; la `KnowledgeBase` solo se modifica
+    en el hilo principal.
+24. **"Explícamelo con mi código" (GCQ-07).** `ContextBuilder` envía como código real solo el
+    fragmento de la pregunta (≤60 líneas); de la clase y de hasta 2 dependencias directas
+    (tipos del proyecto en campos, parámetros o retorno) envía un resumen generado desde el
+    modelo, sin cuerpos. Tope de 8000 caracteres. Consentimiento explícito la primera vez por
+    proyecto y sesión, con la lista de lo que se envía. El prompt trata el código como material
+    de estudio, no como instrucciones. Caché por pregunta y respuesta durante la sesión; una
+    respuesta que llega tras pasar de pregunta se descarta.
+25. **Progreso en SQLite (GCQ-08).** Tablas `projects`, `sessions` y `attempts` (clave de pregunta,
+    concepto, clase, resultado y fecha; nunca código), migraciones con `PRAGMA user_version`.
+    El dominio no se guarda: se calcula de los intentos. Regla: *dominas un concepto cuando
+    aciertas sus últimas 3 preguntas*; el progreso es la media sobre los conceptos del proyecto.
+    "Te cuesta" = la última respuesta fue fallo o "No sé". Las rondas ordenan fallados → sin
+    practicar → en progreso → dominados, y dentro de cada concepto evitan lo visto hace poco. Si
+    la base falla, `ProgressService` desactiva el guardado y el juego sigue.
 
 ### Seguridad sobre el repositorio
 
@@ -143,6 +204,9 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 ## B. Roadmap
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
+
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · ✅ 12: IA y conceptos con IA (GCQ-05), "Explícamelo con mi código" (GCQ-07) · ✅ 13 (GCQ-08). **v0.1 completo.**
+
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).
 3. Escaneo de archivos en worker thread.

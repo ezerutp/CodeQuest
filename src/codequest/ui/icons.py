@@ -31,16 +31,53 @@ ICONS: dict[str, str] = {
     "mode.fix_code": "mdi6.wrench-outline",
     "mode.comparison": "mdi6.sword-cross",
     "mode.random": "mdi6.dice-5-outline",
+    "search": "mdi6.magnify",
+    "package": "mdi6.folder-outline",
+    "file": "mdi6.file-code-outline",
+    "field": "mdi6.variable",
+    "method": "mdi6.function-variant",
+    "practice": "mdi6.school-outline",
+    "dont-know": "mdi6.help-circle-outline",
+    "correct": "mdi6.check-circle",
+    "incorrect": "mdi6.close-circle",
+    "explain": "mdi6.lightbulb-on-outline",
+    "analogy": "mdi6.lightbulb-outline",
+    "youtube": "mdi6.youtube",
+    "next": "mdi6.arrow-right",
+    "trophy": "mdi6.trophy-outline",
+    "replay": "mdi6.replay",
+    "gap": "mdi6.help-rhombus-outline",
+    "book": "mdi6.book-open-page-variant-outline",
+    "folder-open": "mdi6.folder-open-outline",
+    "chevron-down": "mdi6.chevron-down",
+    "chevron-up": "mdi6.chevron-up",
+    "delete": "mdi6.trash-can-outline",
+    "role.entity": "mdi6.database-outline",
+    "role.controller": "mdi6.api",
+    "role.service": "mdi6.cog-transfer-outline",
+    "role.repository": "mdi6.archive-outline",
+    "role.dto": "mdi6.package-variant-closed",
+    "role.configuration": "mdi6.tune-variant",
+    "role.enum": "mdi6.format-list-bulleted-type",
+    "role.exception": "mdi6.alert-circle-outline",
+    "role.utility": "mdi6.tools",
+    "role.mapper": "mdi6.swap-horizontal",
+    "role.component": "mdi6.puzzle-outline",
+    "role.annotation": "mdi6.at",
+    "role.other": "mdi6.code-braces",
 }
 
 
 def icon(name: str, color: str | None = None, color_on: str | None = None) -> QIcon:
+    """Icono con color. Sin `color` usa el tono atenuado y se ilumina al activarse/marcarse
+    (navegación); con `color` mantiene ese color en todos los estados salvo deshabilitado."""
     palette = current_palette()
+    highlight = color_on or color or palette.text
     return qta.icon(
         ICONS[name],
         color=color or palette.text_muted,
-        color_on=color_on or palette.text,
-        color_active=color_on or palette.text,
+        color_on=highlight,
+        color_active=highlight,
         color_disabled=palette.text_subtle,
     )
 

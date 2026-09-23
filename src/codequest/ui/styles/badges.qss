@@ -9,6 +9,10 @@ QFrame#Chip[tone="accent"] {
 }
 #ChipText { font-size: 12px; font-weight: 500; }
 QFrame#Chip[tone="muted"] #ChipText { color: ${text_muted}; }
+QFrame#Chip[tone="success"] {
+    background: ${success_soft};
+    border-color: ${success};
+}
 
 QLabel#StatusDot { font-size: 12px; }
 QLabel#StatusDot[state="on"] { color: ${success}; }

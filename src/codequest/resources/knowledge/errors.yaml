@@ -1,0 +1,40 @@
+# Manejo de errores en Spring Web
+# Formato: docs/KNOWLEDGE.md
+
+version: 1
+concepts:
+- id: errors.exception-handler
+  title: '@ExceptionHandler'
+  topic: errors
+  matches:
+    annotations:
+    - ExceptionHandler
+  summary: Define el método que responde cuando se lanza cierto tipo de excepción.
+  explanation: |
+    Con @ExceptionHandler(UserNotFoundException.class), cada vez que un controlador lance esa excepción Spring ejecuta este método, que puede devolver un 404 con un mensaje claro en lugar de un error 500 genérico.
+
+    Dentro de una clase @RestControllerAdvice se aplica a todos los controladores.
+  analogy: 'Es el protocolo de emergencias: ante un tipo concreto de incidente, ya está escrito qué hacer.'
+  distractors:
+  - Evita que el método lance excepciones capturándolas todas y descartándolas.
+  - Reintenta automáticamente el método cuando falla hasta que funcione.
+  - Registra la excepción en la base de datos para consultarla más tarde.
+  youtube_query: Spring @ExceptionHandler manejo de errores
+- id: errors.controller-advice
+  title: '@RestControllerAdvice'
+  topic: errors
+  matches:
+    annotations:
+    - RestControllerAdvice
+    - ControllerAdvice
+  summary: Centraliza en una clase el manejo de excepciones de todos los controladores.
+  explanation: |
+    En lugar de repetir try/catch en cada controlador, una clase @RestControllerAdvice reúne los métodos @ExceptionHandler y Spring los aplica a toda la aplicación.
+
+    @ControllerAdvice es la versión que trabaja con vistas; @RestControllerAdvice añade @ResponseBody para devolver datos.
+  analogy: 'Es el departamento de atención al cliente: todas las quejas, vengan de donde vengan, se gestionan en un solo sitio.'
+  distractors:
+  - Da consejos de rendimiento sobre los controladores al arrancar la aplicación.
+  - Registra un controlador REST adicional con rutas de administración.
+  - Intercepta las peticiones para exigir autenticación en todos los controladores.
+  youtube_query: Spring @RestControllerAdvice global exception handler
