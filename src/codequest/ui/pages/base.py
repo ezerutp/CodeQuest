@@ -11,6 +11,9 @@ class Page(QScrollArea):
 
     MAX_CONTENT_WIDTH = 1120
     MIN_SIDE_MARGIN = 40
+    # True para páginas tipo herramienta (explorador, editor) cuyo contenido ocupa todo el
+    # alto disponible y tiene su propio scroll interno.
+    FILL_HEIGHT = False
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -25,7 +28,8 @@ class Page(QScrollArea):
         self._viewport_widget = QWidget()
         self.layout_ = QVBoxLayout(self._viewport_widget)
         self.layout_.setSpacing(16)
-        self.layout_.setAlignment(Qt.AlignmentFlag.AlignTop)
+        if not self.FILL_HEIGHT:
+            self.layout_.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._update_margins()
         self.setWidget(self._viewport_widget)
 

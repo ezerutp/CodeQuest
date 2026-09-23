@@ -23,6 +23,20 @@ class Palette:
     warning: str
     warning_soft: str
     danger: str
+    # Editor de código
+    editor_bg: str
+    editor_gutter: str
+    editor_line_number: str
+    editor_line_number_active: str
+    editor_current_line: str
+    editor_highlight_line: str
+    editor_selection: str
+    syntax_keyword: str
+    syntax_type: str
+    syntax_string: str
+    syntax_number: str
+    syntax_comment: str
+    syntax_annotation: str
 
     def tokens(self) -> dict[str, str]:
         return asdict(self)
@@ -47,4 +61,17 @@ DARK = Palette(
     warning="#d29922",
     warning_soft="#2b2111",
     danger="#f85149",
+    editor_bg="#0d1117",
+    editor_gutter="#0d1117",
+    editor_line_number="#484f58",
+    editor_line_number_active="#e6edf3",
+    editor_current_line="#161b22",
+    editor_highlight_line="#2a2145",
+    editor_selection="#264f78",
+    syntax_keyword="#ff7b72",
+    syntax_type="#ffa657",
+    syntax_string="#a5d6ff",
+    syntax_number="#79c0ff",
+    syntax_comment="#8b949e",
+    syntax_annotation="#d2a8ff",
 )
