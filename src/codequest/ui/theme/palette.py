@@ -23,6 +23,8 @@ class Palette:
     warning: str
     warning_soft: str
     danger: str
+    success_soft: str
+    danger_soft: str
     # Editor de código
     editor_bg: str
     editor_gutter: str
@@ -61,6 +63,8 @@ DARK = Palette(
     warning="#d29922",
     warning_soft="#2b2111",
     danger="#f85149",
+    success_soft="#11261b",
+    danger_soft="#2c1417",
     editor_bg="#0d1117",
     editor_gutter="#0d1117",
     editor_line_number="#484f58",

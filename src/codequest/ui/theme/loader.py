@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 # El orden importa: las reglas posteriores pueden refinar a las anteriores.
 STYLE_FILES: tuple[str, ...] = (
     "base.qss", "sidebar.qss", "cards.qss", "buttons.qss", "badges.qss", "inputs.qss", "lists.qss", "editor.qss",
+    "game.qss",
 )
 
 

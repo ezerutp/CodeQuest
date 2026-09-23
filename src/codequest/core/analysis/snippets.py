@@ -16,6 +16,16 @@ class CodeSnippet:
         return self.end_line - self.start_line + 1
 
 
+@dataclass(frozen=True, slots=True)
+class SnippetRef:
+    """Referencia a un fragmento sin su texto: las preguntas no guardan código."""
+
+    file: str
+    start_line: int
+    end_line: int
+    focus_lines: tuple[int, ...] = ()  # líneas a resaltar (numeración del archivo)
+
+
 def read_snippet(root: Path, relative_path: str, start_line: int = 1, end_line: int | None = None) -> CodeSnippet:
     """Lee las líneas [start_line, end_line] de un archivo del proyecto.
 
