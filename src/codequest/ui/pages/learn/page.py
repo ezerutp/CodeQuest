@@ -17,6 +17,8 @@ class LearnPage(Page):
     go_home = Signal()
     open_class = Signal(str)
     explain_requested = Signal(object)  # Evaluation
+    answered = Signal(object)  # Evaluation
+    round_finished = Signal(object)  # GameSession
 
     def __init__(self, load_snippet: SnippetLoader, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -41,6 +43,7 @@ class LearnPage(Page):
         self._game.finished.connect(self._show_summary)
         self._game.open_class.connect(self.open_class)
         self._game.explain_requested.connect(self.explain_requested)
+        self._game.answered.connect(self.answered)
         self._game.content_changed.connect(self.content_changed)
         self.layout_.addWidget(self._game)
 
@@ -79,6 +82,11 @@ class LearnPage(Page):
     def _show_summary(self, session: GameSession) -> None:
         self._summary.show_session(session)
         self._show(self._summary)
+        self.round_finished.emit(session)
+
+    def show_progress_change(self, before: int, after: int) -> None:
+        self._summary.show_progress_change(before, after)
+        self.content_changed()
 
     def _show(self, view: QWidget) -> None:
         # Vistas hermanas en el mismo layout, solo una visible: a diferencia de un

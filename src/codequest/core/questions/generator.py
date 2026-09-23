@@ -2,7 +2,7 @@
 
 import random
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.knowledge.base import KnowledgeBase
@@ -29,20 +29,29 @@ class QuestionGenerator:
         return result
 
     def generate(self, model: ProjectModel, limit: int = 10, class_name: str | None = None,
-                 rng: random.Random | None = None) -> list[Question]:
-        """Hasta `limit` preguntas, variando conceptos: 10 controllers no dan 10 preguntas de @RestController."""
+                 rng: random.Random | None = None, priorities: Mapping[str, float] | None = None,
+                 avoid_keys: frozenset[str] = frozenset()) -> list[Question]:
+        """Hasta `limit` preguntas, variando conceptos: 10 controllers no dan 10 preguntas de @RestController.
+
+        `priorities` ordena los conceptos (menor = antes; los que faltan valen 1.0) y `avoid_keys`
+        manda al final de cada concepto las preguntas vistas hace poco.
+        """
         rng = rng or random.Random()
+        priorities = priorities or {}
         by_concept: dict[str, list[QuestionDraft]] = defaultdict(list)
         for draft in self.drafts(model, class_name):
             by_concept[draft.concept.id].append(draft)
 
         groups = list(by_concept.values())
-        rng.shuffle(groups)
+        rng.shuffle(groups)  # desempate aleatorio entre conceptos de igual prioridad
+        groups.sort(key=lambda g: priorities.get(g[0].concept.id, 1.0))
         for group in groups:
             rng.shuffle(group)
+            # `pop()` saca del final: las no vistas recientemente deben quedar al final.
+            group.sort(key=lambda d: d.key not in avoid_keys)
 
         picked: list[QuestionDraft] = []
-        while groups and len(picked) < limit:  # round-robin entre conceptos
+        while groups and len(picked) < limit:  # round-robin entre conceptos, respetando la prioridad
             for group in list(groups):
                 picked.append(group.pop())
                 if not group:

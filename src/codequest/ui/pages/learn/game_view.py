@@ -24,6 +24,7 @@ MAX_EDITOR_LINES = 16
 
 class GameView(QWidget):
     finished = Signal(object)  # GameSession
+    answered = Signal(object)  # Evaluation: para guardar el progreso
     open_class = Signal(str)  # nombre cualificado
     content_changed = Signal()  # la altura cambió: la página debe reajustar su scroll
     explain_requested = Signal(object)  # Evaluation
@@ -186,11 +187,15 @@ class GameView(QWidget):
 
     def _answer(self, index: int) -> None:
         if self._can_answer():
-            self._reveal(self._session.answer(index))
+            evaluation = self._session.answer(index)
+            self.answered.emit(evaluation)
+            self._reveal(evaluation)
 
     def _skip(self) -> None:
         if self._can_answer():
-            self._reveal(self._session.skip())
+            evaluation = self._session.skip()
+            self.answered.emit(evaluation)
+            self._reveal(evaluation)
 
     def _can_answer(self) -> bool:
         return self._session is not None and self._session.current is not None and not self._session.is_answered

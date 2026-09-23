@@ -60,7 +60,8 @@ La IA sirve para:
 ## Privacidad y seguridad
 
 - CodeQuest **solo lee** el proyecto analizado; nunca escribe en él.
-- El progreso y los logs se guardan en el directorio de datos del usuario, no en el repo.
+- El progreso (SQLite) y los logs se guardan en el directorio de datos del usuario, no en el repo.
+  La base solo guarda qué preguntas respondiste y cómo, nunca tu código.
 - La API key solo se lee de la variable de entorno. Nunca se muestra, guarda ni registra.
 - Solo se enviarán fragmentos de código a la IA en los ejercicios marcados con **IA**.
 

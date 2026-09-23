@@ -1,6 +1,7 @@
 """Caso de uso: crear rondas de práctica sobre el proyecto analizado."""
 
 import random
+from collections.abc import Mapping
 
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.games.base import BaseGameMode, GameSession
@@ -28,8 +29,14 @@ class LearningService:
         return len(self._generator.drafts(model, class_name))
 
     def start_session(self, model: ProjectModel, mode_id: str = MULTIPLE_CHOICE,
-                      class_name: str | None = None, size: int = ROUND_SIZE) -> GameSession:
-        """Nueva ronda. Puede no tener preguntas (p. ej. una clase sin anotaciones conocidas)."""
+                      class_name: str | None = None, size: int = ROUND_SIZE,
+                      priorities: Mapping[str, float] | None = None,
+                      avoid_keys: frozenset[str] = frozenset()) -> GameSession:
+        """Nueva ronda. Puede no tener preguntas (p. ej. una clase sin anotaciones conocidas).
+
+        Con historial, `priorities` pone primero lo que cuesta y `avoid_keys` evita repetir lo reciente.
+        """
         mode = self._modes[mode_id]
-        questions = self._generator.generate(model, limit=size, class_name=class_name, rng=self._rng)
+        questions = self._generator.generate(model, limit=size, class_name=class_name, rng=self._rng,
+                                             priorities=priorities, avoid_keys=avoid_keys)
         return GameSession(mode=mode, questions=questions, scope=class_name)

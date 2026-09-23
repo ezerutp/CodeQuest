@@ -174,6 +174,13 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     proyecto y sesión, con la lista de lo que se envía. El prompt trata el código como material
     de estudio, no como instrucciones. Caché por pregunta y respuesta durante la sesión; una
     respuesta que llega tras pasar de pregunta se descarta.
+25. **Progreso en SQLite (GCQ-08).** Tablas `projects`, `sessions` y `attempts` (clave de pregunta,
+    concepto, clase, resultado y fecha; nunca código), migraciones con `PRAGMA user_version`.
+    El dominio no se guarda: se calcula de los intentos. Regla: *dominas un concepto cuando
+    aciertas sus últimas 3 preguntas*; el progreso es la media sobre los conceptos del proyecto.
+    "Te cuesta" = la última respuesta fue fallo o "No sé". Las rondas ordenan fallados → sin
+    practicar → en progreso → dominados, y dentro de cada concepto evitan lo visto hace poco. Si
+    la base falla, `ProgressService` desactiva el guardado y el juego sigue.
 
 ### Seguridad sobre el repositorio
 
@@ -198,7 +205,7 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
 
-Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · ✅ 12: IA y conceptos con IA (GCQ-05), "Explícamelo con mi código" (GCQ-07) · ⏳ 13 (GCQ-08).
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · ✅ 12: IA y conceptos con IA (GCQ-05), "Explícamelo con mi código" (GCQ-07) · ✅ 13 (GCQ-08). **v0.1 completo.**
 
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).

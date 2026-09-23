@@ -14,3 +14,8 @@ def data_dir() -> Path:
 def knowledge_dir() -> Path:
     """Conceptos añadidos por el usuario o generados con IA (un YAML por archivo)."""
     return data_dir() / "knowledge"
+
+
+def database_path() -> Path:
+    """Progreso local (SQLite). Solo claves de preguntas y resultados, nunca código."""
+    return data_dir() / "codequest.db"
