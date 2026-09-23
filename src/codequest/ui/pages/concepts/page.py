@@ -5,13 +5,14 @@ from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.knowledge.coverage import KnowledgeGap, KnowledgeReport
 from codequest.core.knowledge.models import Concept, ConceptSource
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
+from codequest.ui.dialogs import confirm
 from codequest.ui.formatting import inline_code_html, plural
 from codequest.ui.icons import icon
 from codequest.ui.pages.base import Page
@@ -235,23 +236,24 @@ class ConceptsPage(Page):
 
     def _confirm_generate(self, gaps: tuple[KnowledgeGap, ...]) -> None:
         preview = "\n".join(f"• {line}" for line in KnowledgeService.privacy_preview(gaps))
-        answer = QMessageBox.question(
+        accepted = confirm(
             self, "Completar con IA",
             f"Se enviará a {self._knowledge.provider_name} esta información para generar "
-            f"{plural(len(gaps), 'concepto', 'conceptos')}:\n\n{preview}\n\n"
-            "No se envía código ni nombres de tu proyecto. Los conceptos generados se guardan en tu "
-            "carpeta local y se reutilizan sin volver a llamar a la IA.\n\n¿Continuar?",
+            f"{plural(len(gaps), 'concepto', 'conceptos')}:\n\n{preview}",
+            details="No se envía código ni nombres de tu proyecto. Los conceptos generados se guardan en tu "
+                    "carpeta local y se reutilizan sin volver a llamar a la IA.",
+            confirm_text="Generar con IA", icon_name="ai",
         )
-        if answer == QMessageBox.StandardButton.Yes:
+        if accepted:
             self.generate_requested.emit(gaps)
 
     def _confirm_delete(self, concept: Concept) -> None:
-        answer = QMessageBox.question(
-            self, "Borrar concepto",
-            f"¿Borrar {concept.title} de tu carpeta local? Volverá a aparecer como pendiente y podrás "
-            "generarlo otra vez con IA.",
+        accepted = confirm(
+            self, "Borrar concepto", f"¿Borrar {concept.title} de tu carpeta local?",
+            details="Volverá a aparecer como pendiente y podrás generarlo otra vez con IA.",
+            confirm_text="Borrar", icon_name="delete",
         )
-        if answer == QMessageBox.StandardButton.Yes:
+        if accepted:
             self.delete_requested.emit(concept.id)
 
     def _open_knowledge_dir(self) -> None:
