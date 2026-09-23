@@ -120,6 +120,19 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
    colorean con la paleta. Las maquetas de este documento usan emojis solo como ilustración.
 9. **Sin IA no hay bloqueo**: toda funcionalidad tiene un camino local; la IA solo
    mejora.
+10. **Parser por texto enmascarado (GCQ-01).** Comentarios y strings se sustituyen por
+    espacios conservando offsets; después se recorre el código contando llaves/paréntesis
+    y las regex solo se aplican a cabeceras cortas. Evita que `"{"` o un `class` en un
+    comentario rompan la estructura, y las líneas siguen siendo exactas para los snippets.
+    Coste medido: ~100 µs por método (un proyecto de 60 clases, ~50 ms).
+11. **Los roles viven en `ProjectModel.roles`, no en `JavaClass`.** Los modelos Java son
+    inmutables (seguros entre hilos) y el parser no depende de Spring.
+12. **Interfaces sin anotaciones no se clasifican por paquete**: `UserService` +
+    `UserServiceImpl (@Service)` cuentan como 1 service, no 2. Las clases de `src/test/`
+    se parsean pero no cuentan en las estadísticas.
+13. **Roles adicionales** a los de la especificación: `MAPPER`, `COMPONENT` (un `@Component`
+    sin otra convención) y `ANNOTATION` (anotaciones propias). `@ControllerAdvice` cuenta
+    como `EXCEPTION`, y `@SpringBootApplication` como `CONFIGURATION`.
 
 ### Seguridad sobre el repositorio
 
@@ -143,6 +156,9 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 ## B. Roadmap
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
+
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ⏳ resto.
+
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).
 3. Escaneo de archivos en worker thread.

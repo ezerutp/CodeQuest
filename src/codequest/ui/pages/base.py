@@ -3,6 +3,7 @@ from PySide6.QtGui import QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
 from codequest.app.context import AppContext
+from codequest.core.analysis.model import ProjectModel
 
 
 class Page(QScrollArea):
@@ -50,5 +51,12 @@ class Page(QScrollArea):
         side = max(self.MIN_SIDE_MARGIN, (width - self.MAX_CONTENT_WIDTH) // 2)
         self.layout_.setContentsMargins(side, 36, side, 40)
 
+    def content_changed(self) -> None:
+        """Llamar tras añadir o quitar widgets dinámicamente."""
+        QTimer.singleShot(0, self.sync_content_size)
+
     def set_context(self, context: AppContext) -> None:
         """Las páginas que muestran datos del proyecto lo sobrescriben."""
+
+    def set_model(self, model: ProjectModel | None) -> None:
+        """Recibe el resultado del análisis (None mientras se analiza otro proyecto)."""
