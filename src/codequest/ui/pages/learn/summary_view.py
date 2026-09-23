@@ -40,6 +40,10 @@ class SummaryView(QWidget):
         card.body.addWidget(self._score)
         self._message = muted("")
         card.body.addWidget(self._message)
+        self._progress = QLabel()
+        self._progress.setProperty("role", "h2")
+        self._progress.hide()
+        card.body.addWidget(self._progress)
 
         buttons = QHBoxLayout()
         again = QPushButton("Otra ronda")
@@ -66,7 +70,14 @@ class SummaryView(QWidget):
         self._review.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(review_holder)
 
+    def show_progress_change(self, before: int, after: int) -> None:
+        delta = after - before
+        change = f" (+{delta})" if delta > 0 else f" ({delta})" if delta < 0 else ""
+        self._progress.setText(f"Progreso del proyecto: {after} %{change}")
+        self._progress.show()
+
     def show_session(self, session: GameSession) -> None:
+        self._progress.hide()
         total = max(session.total, 1)
         self._score.setText(f"{session.correct_count} / {session.total}")
         self._message.setText(_message(session.correct_count / total))

@@ -24,6 +24,7 @@ from codequest.core.project.models import ProjectInfo
 from codequest.services.explain_service import ExplainService
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.services.learning_service import LearningService
+from codequest.services.progress_service import ProgressService
 from codequest.services.project_service import ProjectService
 from codequest.ui.dialogs import confirm, warn
 from codequest.ui.navigation import PageId, Sidebar
@@ -47,13 +48,16 @@ PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
 class MainWindow(QMainWindow):
     def __init__(self, context: AppContext, service: ProjectService,
                  learning: LearningService | None = None, knowledge_dir: Path | None = None,
-                 knowledge: KnowledgeService | None = None, explain: ExplainService | None = None) -> None:
+                 knowledge: KnowledgeService | None = None, explain: ExplainService | None = None,
+                 progress: ProgressService | None = None) -> None:
         super().__init__()
         self._context = context
         self._service = service
         self._learning = learning or LearningService()
         self._knowledge = knowledge or KnowledgeService(self._learning.kb, store=None, provider=None)
         self._explain = explain or ExplainService(None)
+        self._progress = progress or ProgressService(None)
+        self._percent_before_round = 0
         self._code_consent = False  # consentimiento para enviar código, por proyecto y sesión
         self._explaining_key: str | None = None
         self._model: ProjectModel | None = None
@@ -79,6 +83,8 @@ class MainWindow(QMainWindow):
         self._learn.go_home.connect(lambda: self.show_page(PageId.HOME))
         self._learn.open_class.connect(self._open_class)
         self._learn.explain_requested.connect(self._explain_with_code)
+        self._learn.answered.connect(self._progress.record)
+        self._learn.round_finished.connect(self._on_round_finished)
         self._learn.set_ai_available(self._explain.can_explain, self._explain.provider_name)
         self._add_page(PageId.LEARN, self._learn)
 
@@ -139,6 +145,9 @@ class MainWindow(QMainWindow):
         self._model = None
         self._explain.clear()
         self._code_consent = False  # otro proyecto, otro código: se vuelve a preguntar
+        self._progress.finish()  # una ronda a medias del proyecto anterior queda cerrada
+        if project.is_supported:
+            self._progress.open_project(project)
         self._apply_context()
         for page in self._pages.values():
             page.set_model(None)
@@ -160,11 +169,25 @@ class MainWindow(QMainWindow):
     # --- conocimiento e IA ---------------------------------------------------------
 
     def _refresh_knowledge(self) -> None:
+        """Recalcula cobertura y progreso (tras el análisis, una ronda o un cambio de conceptos)."""
         if self._model is None:
             return
         report = self._learning.knowledge_report(self._model)
+        overview = self._progress.overview(report)
         self._dashboard.set_knowledge(report)
-        self._concepts.set_report(report)
+        self._dashboard.set_progress(overview, self._progress.error)
+        self._concepts.set_report(report, overview.history)
+
+    def _current_percent(self) -> int:
+        if self._model is None:
+            return 0
+        return self._progress.overview(self._learning.knowledge_report(self._model)).percent
+
+    def _on_round_finished(self, _session) -> None:
+        self._progress.finish()
+        after = self._current_percent()
+        self._learn.show_progress_change(self._percent_before_round, after)
+        self._refresh_knowledge()
 
     def _generate_concepts(self, gaps) -> None:
         if not self._knowledge.can_generate or self._ai_task.is_running:
@@ -246,7 +269,11 @@ class MainWindow(QMainWindow):
                       "Los ejercicios están disponibles para proyectos Java.")
             self._learn.show_mode_select(notice)
             return
-        session = self._learning.start_session(self._model, mode_id, class_name=class_name)
+        concept_ids = [c.id for c in self._learning.kb.concepts]
+        session = self._learning.start_session(
+            self._model, mode_id, class_name=class_name,
+            priorities=self._progress.priorities(concept_ids), avoid_keys=self._progress.recent_keys(),
+        )
         cls = next((c for c in self._model.classes if c.qualified_name == class_name), None)
         label = display_name(cls) if cls else None
         if not session.questions:
@@ -257,6 +284,8 @@ class MainWindow(QMainWindow):
             )
             return
         self._last_scope = class_name
+        self._percent_before_round = self._current_percent()
+        self._progress.start(session)
         self._learn.start(session, label)
 
     def _open_class(self, qualified_name: str) -> None:

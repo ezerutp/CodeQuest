@@ -9,7 +9,7 @@ from codequest import __version__
 from codequest.app.constants import APP_NAME, APP_SLUG, APP_TAGLINE
 from codequest.app.context import AppContext
 from codequest.app.logging_setup import setup_logging
-from codequest.app.paths import knowledge_dir
+from codequest.app.paths import database_path, knowledge_dir
 from codequest.core.ai.availability import detect_ai_status
 from codequest.core.ai.factory import create_provider
 from codequest.core.knowledge.base import KnowledgeBase
@@ -17,6 +17,7 @@ from codequest.core.knowledge.store import KnowledgeStore
 from codequest.services.explain_service import ExplainService
 from codequest.services.knowledge_service import KnowledgeService
 from codequest.services.learning_service import LearningService
+from codequest.services.progress_service import ProgressService
 from codequest.services.project_service import ProjectService
 
 log = logging.getLogger(__name__)
@@ -29,6 +30,20 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--debug", action="store_true", help="Muestra logs detallados en la terminal.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser.parse_args(argv)
+
+
+def _open_progress() -> ProgressService:
+    """Base de datos de progreso. Si no se puede abrir, la app funciona sin guardar."""
+    import sqlite3
+
+    from codequest.core.persistence.database import Database
+    from codequest.core.persistence.progress import ProgressRepository
+
+    try:
+        return ProgressService(ProgressRepository(Database(database_path())))
+    except (sqlite3.Error, OSError) as exc:
+        log.warning("No se pudo abrir la base de datos de progreso: %s", exc)
+        return ProgressService(None, error=str(exc))
 
 
 def _install_qt_translations(app) -> None:
@@ -63,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     provider = create_provider(context.ai)
     knowledge = KnowledgeService(kb, KnowledgeStore(user_knowledge), provider)
     explain = ExplainService(provider)
+    progress = _open_progress()
 
     # Qt se importa aquí para que --help/--version no necesiten cargarlo.
     from PySide6.QtWidgets import QApplication
@@ -78,6 +94,6 @@ def main(argv: list[str] | None = None) -> int:
     apply_palette(app, DARK)  # también para diálogos y ventanas secundarias
     app.setStyleSheet(load_stylesheet(DARK))
 
-    window = MainWindow(context, service, learning, user_knowledge, knowledge, explain)
+    window = MainWindow(context, service, learning, user_knowledge, knowledge, explain, progress)
     window.show()
     return app.exec()

@@ -11,6 +11,7 @@ from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.knowledge.coverage import KnowledgeGap, KnowledgeReport
 from codequest.core.knowledge.models import Concept, ConceptSource
+from codequest.core.persistence.progress import ProjectHistory
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.ui.dialogs import confirm
 from codequest.ui.formatting import inline_code_html, plural
@@ -40,6 +41,7 @@ class ConceptsPage(Page):
         self._generating = False
         self._generate_button: QPushButton | None = None
         self._result: GenerationResult | None = None
+        self._history: ProjectHistory | None = None
 
         self.layout_.addWidget(heading("Conceptos"))
         self.layout_.addWidget(muted("Lo que CodeQuest sabe explicarte de tu proyecto, y lo que todavía no."))
@@ -70,11 +72,14 @@ class ConceptsPage(Page):
         if model is None:
             self._report = None
             self._result = None
+            self._history = None
             self._show_message("Analizando tu proyecto…" if self._supported
                                else "Los conceptos están disponibles para proyectos Java.")
 
-    def set_report(self, report: KnowledgeReport) -> None:
+    def set_report(self, report: KnowledgeReport, history: ProjectHistory | None = None) -> None:
         self._report = report
+        if history is not None:
+            self._history = history
         self._rebuild()
 
     # --- generación con IA ----------------------------------------------------------
@@ -122,9 +127,11 @@ class ConceptsPage(Page):
         if report.used:
             for usage in report.used:
                 deletable = usage.concept.source is ConceptSource.AI
-                self._content_layout.addWidget(
-                    ConceptCard(usage.concept, usage.usages, on_delete=self._confirm_delete if deletable else None)
-                )
+                progress = self._history.concepts.get(usage.concept.id) if self._history else None
+                self._content_layout.addWidget(ConceptCard(
+                    usage.concept, usage.usages, on_delete=self._confirm_delete if deletable else None,
+                    progress=progress,
+                ))
         else:
             self._content_layout.addWidget(muted("Tu proyecto no usa ninguno de los conceptos que conozco."))
         self.content_changed()

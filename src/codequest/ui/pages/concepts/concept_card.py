@@ -5,7 +5,9 @@ from collections.abc import Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from codequest.core.games.base import Outcome
 from codequest.core.knowledge.models import Concept, ConceptSource
+from codequest.core.persistence.progress import MASTERY_WINDOW, ConceptProgress
 from codequest.ui.formatting import inline_code_html, plural
 from codequest.ui.icons import icon
 from codequest.ui.theme import current_palette
@@ -17,7 +19,7 @@ _CHEVRON_SIZE = 18
 
 class ConceptCard(ClickableCard):
     def __init__(self, concept: Concept, usages: int, on_delete: Callable[[Concept], None] | None = None,
-                 parent: QWidget | None = None) -> None:
+                 progress: ConceptProgress | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent, padding=16)
         self.body.setSpacing(6)
         self.setToolTip("Clic para ver la explicación")
@@ -33,6 +35,7 @@ class ConceptCard(ClickableCard):
             head.addWidget(Chip(SOURCE_LABELS[concept.source], tone="accent",
                                 icon="ai" if concept.source is ConceptSource.AI else "book"))
         head.addStretch(1)
+        head.addWidget(_mastery_chip(progress))
         head.addWidget(muted(plural(usages, "uso", "usos"), word_wrap=False))
         self._chevron = QLabel()
         head.addWidget(self._chevron)
@@ -75,3 +78,17 @@ class ConceptCard(ClickableCard):
     def _update_chevron(self) -> None:
         name = "chevron-down" if self._details.isHidden() else "chevron-up"
         self._chevron.setPixmap(icon(name).pixmap(_CHEVRON_SIZE, _CHEVRON_SIZE))
+
+
+def _mastery_chip(progress: ConceptProgress | None) -> Chip:
+    if progress is None:
+        return Chip("Sin practicar", tone="muted")
+    if progress.is_mastered:
+        chip = Chip("Dominado", icon="correct")
+        chip.setProperty("tone", "success")
+        return chip
+    correct = sum(o is Outcome.CORRECT for o in progress.recent[-MASTERY_WINDOW:])
+    chip = Chip(f"{correct} de {MASTERY_WINDOW}", tone="muted")
+    chip.setToolTip(f"Aciertos en tus últimas {MASTERY_WINDOW} preguntas de este concepto. "
+                    f"Lo dominas cuando aciertas las {MASTERY_WINDOW}.")
+    return chip

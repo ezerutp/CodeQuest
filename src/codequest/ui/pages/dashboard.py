@@ -1,13 +1,14 @@
 """Pantalla de inicio: resumen del proyecto, estado de la IA y modos de juego."""
 
-from PySide6.QtCore import QSize, Signal
-from PySide6.QtWidgets import QHBoxLayout, QProgressBar, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.roles import ComponentRole
 from codequest.core.knowledge.coverage import KnowledgeReport
-from codequest.ui.formatting import ai_indicator, duration, plural, role_count
+from codequest.services.progress_service import ProgressOverview
+from codequest.ui.formatting import ai_indicator, duration, inline_code_html, plural, role_count
 from codequest.ui.icons import icon
 from codequest.ui.pages.base import Page
 from codequest.ui.theme import current_palette
@@ -122,6 +123,11 @@ class DashboardPage(Page):
         self._progress_label = muted("Todavía no has practicado este proyecto.")
         progress_box.addWidget(self._progress)
         progress_box.addWidget(self._progress_label)
+        self._weak_label = QLabel()
+        self._weak_label.setWordWrap(True)
+        self._weak_label.setTextFormat(Qt.TextFormat.RichText)
+        self._weak_label.hide()
+        progress_box.addWidget(self._weak_label)
         bottom.addLayout(progress_box, 1)
         bottom.addSpacing(32)
 
@@ -145,6 +151,30 @@ class DashboardPage(Page):
             self._role_tiles[role] = tile
             row.addWidget(tile)
         return row
+
+    def set_progress(self, overview: ProgressOverview, saving_error: str | None = None) -> None:
+        history = overview.history
+        self._progress.setValue(overview.percent)
+        if history.has_history:
+            self._greeting.setText("Volvamos a tu proyecto")
+            self._continue.setText("Continuar aprendiendo")
+            self._progress_label.setText(
+                f"{overview.percent} % · Dominas {overview.mastered} de {overview.total} conceptos · "
+                f"{plural(history.attempts, 'respuesta', 'respuestas')} · "
+                f"{round(100 * history.accuracy)} % de aciertos"
+            )
+        else:
+            self._greeting.setText("Exploremos tu proyecto")
+            self._continue.setText("Empezar a aprender")
+            self._progress_label.setText("Todavía no has practicado este proyecto.")
+        if saving_error:
+            self._progress_label.setText(f"No se puede guardar tu progreso ({saving_error}). Puedes seguir "
+                                         "practicando, pero no se recordará.")
+        if overview.weak:
+            names = ", ".join(f"`{c.title}`" for c in overview.weak)
+            self._weak_label.setText(inline_code_html(f"Todavía te cuesta: {names}"))
+        self._weak_label.setVisible(bool(overview.weak))
+        self.content_changed()
 
     def _build_knowledge_card(self) -> Card:
         card = Card(padding=16)
