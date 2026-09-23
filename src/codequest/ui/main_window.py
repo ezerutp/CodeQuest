@@ -1,24 +1,25 @@
 """Ventana principal: barra lateral + páginas apiladas."""
 
 import logging
-from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QWidget
 
 from codequest.app.constants import APP_NAME
 from codequest.app.context import AppContext
+from codequest.core.analysis.model import ProjectModel
 from codequest.core.project.models import ProjectInfo
+from codequest.services.project_service import ProjectService
 from codequest.ui.navigation import PageId, Sidebar
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.dashboard import DashboardPage
 from codequest.ui.pages.placeholder import PlaceholderPage
+from codequest.ui.workers import AnalysisRunner
 
 log = logging.getLogger(__name__)
-
-ProjectDetectFn = Callable[[Path], ProjectInfo]
 
 # Secciones aún no implementadas. El id de página coincide con el nombre de su icono.
 PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
@@ -31,10 +32,11 @@ PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, context: AppContext, detect_project: ProjectDetectFn) -> None:
+    def __init__(self, context: AppContext, service: ProjectService) -> None:
         super().__init__()
         self._context = context
-        self._detect_project = detect_project
+        self._service = service
+        self._model: ProjectModel | None = None
 
         self.resize(1320, 860)
         self.setMinimumSize(1024, 680)
@@ -61,7 +63,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._stack, 1)
         self.setCentralWidget(central)
 
-        self._apply_context()
+        self._runner = AnalysisRunner(service, self)
+        self._runner.started.connect(self._dashboard.show_analysis_started)
+        self._runner.progress.connect(self._dashboard.show_analysis_progress)
+        self._runner.failed.connect(self._dashboard.show_analysis_failed)
+        self._runner.finished.connect(self._on_analysis_finished)
+
+        self._set_project(context.project)
         self.show_page(PageId.HOME)
 
     def _add_page(self, page_id: PageId, page: Page) -> None:
@@ -79,6 +87,27 @@ class MainWindow(QMainWindow):
             page.set_context(self._context)
             QTimer.singleShot(0, page.sync_content_size)
 
+    def _set_project(self, project: ProjectInfo) -> None:
+        """Cambia el proyecto activo y lanza su análisis en segundo plano."""
+        self._context = replace(self._context, project=project)
+        self._model = None
+        self._apply_context()
+        for page in self._pages.values():
+            page.set_model(None)
+        if project.is_supported:
+            self._runner.start(project)
+        else:
+            self._runner.cancel()
+            self._dashboard.show_analysis_unavailable()
+
+    def _on_analysis_finished(self, model: ProjectModel) -> None:
+        self._model = model
+        if model.info != self._context.project:  # p. ej. Spring detectado por @SpringBootApplication
+            self._context = replace(self._context, project=model.info)
+            self._apply_context()
+        for page in self._pages.values():
+            page.set_model(model)
+
     def _choose_project(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self, "Elige el proyecto que quieres estudiar", str(self._context.project.root)
@@ -86,11 +115,14 @@ class MainWindow(QMainWindow):
         if not directory:
             return
         try:
-            project = self._detect_project(Path(directory))
+            project = self._service.detect(Path(directory))
         except OSError as exc:
             log.warning("No se pudo abrir el proyecto %s: %s", directory, exc)
             QMessageBox.warning(self, APP_NAME, f"No se pudo abrir el proyecto:\n{exc}")
             return
-        self._context = replace(self._context, project=project)
-        self._apply_context()
+        self._set_project(project)
         self.show_page(PageId.HOME)
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (API de Qt)
+        self._runner.shutdown()
+        super().closeEvent(event)

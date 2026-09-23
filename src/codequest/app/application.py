@@ -10,7 +10,7 @@ from codequest.app.constants import APP_NAME, APP_SLUG, APP_TAGLINE
 from codequest.app.context import AppContext
 from codequest.app.logging_setup import setup_logging
 from codequest.core.ai.availability import detect_ai_status
-from codequest.core.project.detector import ProjectDetector
+from codequest.services.project_service import ProjectService
 
 log = logging.getLogger(__name__)
 
@@ -30,9 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     log.info("%s %s iniciando (log: %s)", APP_NAME, __version__, log_file)
 
     root = args.path if args.path else Path.cwd()
-    detector = ProjectDetector()
+    service = ProjectService()
     try:
-        project = detector.detect(root)
+        project = service.detect(root)
     except OSError as exc:
         print(f"{APP_SLUG}: {exc}", file=sys.stderr)
         return 2
@@ -51,6 +51,6 @@ def main(argv: list[str] | None = None) -> int:
     app.setStyle("Fusion")  # base consistente entre sistemas; QSS la refina
     app.setStyleSheet(load_stylesheet(DARK))
 
-    window = MainWindow(context, detect_project=detector.detect)
+    window = MainWindow(context, service)
     window.show()
     return app.exec()
