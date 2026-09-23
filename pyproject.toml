@@ -37,3 +37,7 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Contenido educativo en prosa: partir frases para cumplir 120 columnas empeora su edición.
+"src/codequest/core/knowledge/spring.py" = ["E501"]

@@ -1,9 +1,7 @@
 """Pantalla de inicio: resumen del proyecto, estado de la IA y modos de juego."""
 
-from dataclasses import dataclass
-
 from PySide6.QtCore import QSize, Signal
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QProgressBar, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
@@ -16,32 +14,13 @@ from codequest.ui.widgets import (
     Card,
     Chip,
     IconText,
-    ModeCard,
+    ModeGrid,
     StatTile,
     StatusIndicator,
     heading,
     mono,
     muted,
     section_title,
-)
-
-
-@dataclass(frozen=True, slots=True)
-class ModeInfo:
-    key: str
-    title: str
-    description: str
-    uses_ai: bool = False
-    available: bool = False
-
-
-GAME_MODES: tuple[ModeInfo, ...] = (
-    ModeInfo("multiple_choice", "Alternativas", "Responde preguntas sobre tu propio código.", available=True),
-    ModeInfo("explain_code", "Explícame este código", "Describe con tus palabras qué hace un fragmento.", uses_ai=True),
-    ModeInfo("find_error", "Encuentra el error", "Descubre el error escondido en código real."),
-    ModeInfo("fix_code", "Corrige el código", "Edita el fragmento hasta que funcione."),
-    ModeInfo("comparison", "Comparaciones", "@Controller vs @RestController, Entity vs DTO…"),
-    ModeInfo("random", "Desafío aleatorio", "No sabes qué ejercicio aparecerá."),
 )
 
 # Roles con tarjeta propia; el resto se muestra como chips ("4 Enums", "2 DTOs"...).
@@ -92,7 +71,9 @@ class DashboardPage(Page):
 
         self.layout_.addSpacing(8)
         self.layout_.addWidget(section_title("Modos de juego"))
-        self.layout_.addLayout(self._build_modes())
+        modes = ModeGrid()
+        modes.mode_selected.connect(self.mode_selected)
+        self.layout_.addWidget(modes)
 
     # --- construcción -------------------------------------------------------
 
@@ -171,24 +152,6 @@ class DashboardPage(Page):
         card.body.addWidget(self._ai_detail)
         card.body.addWidget(privacy)
         return card
-
-    def _build_modes(self) -> QGridLayout:
-        grid = QGridLayout()
-        grid.setSpacing(12)
-        columns = 3
-        for index, mode in enumerate(GAME_MODES):
-            card = ModeCard(
-                f"mode.{mode.key}", mode.title, mode.description,
-                badge="IA" if mode.uses_ai else "Local",
-                badge_icon="ai" if mode.uses_ai else "local",
-                available=mode.available,
-            )
-            card.setMinimumHeight(130)
-            card.clicked.connect(lambda key=mode.key: self.mode_selected.emit(key))
-            grid.addWidget(card, index // columns, index % columns)
-        for column in range(columns):
-            grid.setColumnStretch(column, 1)
-        return grid
 
     # --- datos ----------------------------------------------------------------
 

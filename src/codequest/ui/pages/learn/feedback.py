@@ -1,0 +1,97 @@
+"""Retroalimentación educativa tras responder (o pulsar "No sé")."""
+
+from urllib.parse import quote_plus
+
+from PySide6.QtCore import QUrl, Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+
+from codequest.core.games.base import Evaluation, Outcome
+from codequest.core.knowledge.models import Concept
+from codequest.ui.formatting import inline_code_html
+from codequest.ui.icons import icon
+from codequest.ui.theme import current_palette
+from codequest.ui.widgets import Card, IconText
+from codequest.ui.widgets.style_utils import set_style_property
+
+YOUTUBE_SEARCH = "https://www.youtube.com/results?search_query="
+
+_TITLES = {
+    Outcome.CORRECT: ("¡Correcto!", "success", "correct"),
+    Outcome.INCORRECT: ("No exactamente. La respuesta correcta es la {letter}.", "danger", "incorrect"),
+    Outcome.SKIPPED: ("La respuesta correcta es la {letter}.", "info", "explain"),
+}
+
+
+class FeedbackPanel(Card):
+    open_class = Signal(str)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent, padding=22)
+        self.body.setSpacing(12)
+        self._concept: Concept | None = None
+        self._class_name = ""
+
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        self._icon = QLabel()
+        self._title = QLabel()
+        self._title.setObjectName("FeedbackTitle")
+        self._title.setWordWrap(True)
+        header.addWidget(self._icon)
+        header.addWidget(self._title, 1)
+        self.body.addLayout(header)
+
+        self._concept_title = QLabel()
+        self._concept_title.setProperty("role", "h2")
+        self.body.addWidget(self._concept_title)
+        self._explanation = QLabel()
+        self._explanation.setObjectName("FeedbackBody")
+        self._explanation.setWordWrap(True)
+        self.body.addWidget(self._explanation)
+
+        analogy = Card(variant="analogy", padding=16)
+        analogy.body.setSpacing(6)
+        analogy.body.addWidget(IconText("analogy", "<b>Analogía</b>", color=current_palette().syntax_annotation,
+                                        role="body"))
+        self._analogy = QLabel()
+        self._analogy.setObjectName("FeedbackBody")
+        self._analogy.setWordWrap(True)
+        analogy.body.addWidget(self._analogy)
+        self.body.addWidget(analogy)
+
+        actions = QHBoxLayout()
+        youtube = QPushButton("Buscar en YouTube")
+        youtube.setIcon(icon("youtube"))
+        youtube.setToolTip("Abre una búsqueda de videos sobre este concepto en tu navegador")
+        youtube.clicked.connect(self._open_youtube)
+        actions.addWidget(youtube)
+        explorer = QPushButton("Ver la clase en Mi proyecto")
+        explorer.setIcon(icon("project"))
+        explorer.setProperty("variant", "ghost")
+        explorer.clicked.connect(lambda: self._class_name and self.open_class.emit(self._class_name))
+        actions.addWidget(explorer)
+        actions.addStretch(1)
+        self.body.addLayout(actions)
+
+    def show_evaluation(self, evaluation: Evaluation, correct_letter: str) -> None:
+        concept = evaluation.question.concept
+        self._concept = concept
+        self._class_name = evaluation.question.class_name
+
+        title, tone, icon_name = _TITLES[evaluation.outcome]
+        palette = current_palette()
+        color = {"success": palette.success, "danger": palette.danger, "info": palette.syntax_annotation}[tone]
+        self._icon.setPixmap(icon(icon_name, color).pixmap(22, 22))
+        self._title.setText(title.format(letter=correct_letter))
+        set_style_property(self._title, "tone", tone)
+        set_style_property(self, "variant", "success" if tone == "success" else "danger" if tone == "danger" else None)
+
+        self._concept_title.setText(inline_code_html(f"`{concept.title}`"))
+        paragraphs = [p.strip() for p in concept.explanation.split("\n\n") if p.strip()]
+        self._explanation.setText("".join(f"<p>{inline_code_html(p)}</p>" for p in paragraphs))
+        self._analogy.setText(inline_code_html(concept.analogy))
+
+    def _open_youtube(self) -> None:
+        if self._concept is not None:
+            QDesktopServices.openUrl(QUrl(YOUTUBE_SEARCH + quote_plus(self._concept.youtube_query)))

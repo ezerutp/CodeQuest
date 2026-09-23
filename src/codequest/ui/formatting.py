@@ -1,5 +1,8 @@
 """Traducción de modelos del núcleo a textos/estados de presentación."""
 
+import html
+import re
+
 from codequest.core.ai.availability import AIStatus
 from codequest.core.analysis.roles import ComponentRole
 from codequest.ui.theme import current_palette
@@ -57,3 +60,13 @@ def role_color(role: ComponentRole) -> str:
         ComponentRole.ENUM: p.warning,
         ComponentRole.EXCEPTION: p.danger,
     }.get(role, p.text_muted)
+
+
+_INLINE_CODE = re.compile(r"`([^`]+)`")
+
+
+def inline_code_html(text: str) -> str:
+    """Texto con `código` entre backticks -> HTML para QLabel, con el código en monoespaciada."""
+    color = current_palette().syntax_annotation
+    style = f"font-family: 'JetBrains Mono', 'Source Code Pro', monospace; color: {color};"
+    return _INLINE_CODE.sub(lambda m: f'<span style="{style}">{m.group(1)}</span>', html.escape(text))

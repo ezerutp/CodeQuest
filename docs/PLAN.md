@@ -141,6 +141,16 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     preguntas pueden citar "línea 42" igual que el IDE del estudiante.
 16. **Árbol de paquetes compactado** (`core/analysis/package_tree.py`): `com.example.shop`
     se muestra como un nodo, como las carpetas compactas de VS Code.
+17. **Distractores solo escritos a mano (GCQ-03).** Usar el resumen de otro concepto como
+    opción falsa puede crear ambigüedad (un `@Service` también "registra un bean"). La
+    `KnowledgeBase` valida al arrancar ≥3 distractores por concepto y un test impide que la
+    respuesta correcta sea >10 % más larga que el distractor más largo (se adivinaría).
+18. **Preguntas sin código.** `Question` guarda un `SnippetRef` (archivo, líneas, línea a
+    resaltar); el texto se lee al mostrarla. El generador es puro y testeable, y la base de
+    datos nunca guardará código.
+19. **Rondas variadas.** El generador agrupa por concepto y reparte round-robin: 10
+    controllers no producen 10 preguntas de `@RestController`.
+20. **Catálogo de modos en `core/games/catalog.py`**: dashboard y Aprender muestran lo mismo.
 
 ### Seguridad sobre el repositorio
 
@@ -165,7 +175,7 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
 
-Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ⏳ resto.
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ⏳ 12, 13.
 
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).
