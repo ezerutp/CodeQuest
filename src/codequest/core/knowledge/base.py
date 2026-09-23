@@ -53,6 +53,23 @@ class KnowledgeBase:
     def source_counts(self) -> Counter[ConceptSource]:
         return Counter(c.source for c in self._concepts.values())
 
+    def add(self, concept: Concept) -> bool:
+        """Añade un concepto en caliente (p. ej. recién generado). False si choca con uno existente."""
+        before = len(self._concepts)
+        self._add(concept)
+        return len(self._concepts) > before
+
+    def remove(self, concept_id: str) -> Concept | None:
+        """Quita un concepto que no sea integrado. Devuelve el concepto quitado."""
+        concept = self._concepts.get(concept_id)
+        if concept is None or concept.source is ConceptSource.BUILTIN:
+            return None
+        del self._concepts[concept_id]
+        for index in (self._by_annotation, self._by_supertype):
+            for name in [n for n, c in index.items() if c.id == concept_id]:
+                del index[name]
+        return concept
+
     def _add(self, concept: Concept) -> None:
         conflicts = [f"id '{concept.id}'"] if concept.id in self._concepts else []
         conflicts += [f"@{a}" for a in concept.matches.annotations if a in self._by_annotation]

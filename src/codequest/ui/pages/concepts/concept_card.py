@@ -1,7 +1,9 @@
 """Tarjeta desplegable de un concepto: resumen siempre visible, explicación al hacer clic."""
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from codequest.core.knowledge.models import Concept, ConceptSource
 from codequest.ui.formatting import inline_code_html, plural
@@ -14,7 +16,8 @@ _CHEVRON_SIZE = 18
 
 
 class ConceptCard(ClickableCard):
-    def __init__(self, concept: Concept, usages: int, parent: QWidget | None = None) -> None:
+    def __init__(self, concept: Concept, usages: int, on_delete: Callable[[Concept], None] | None = None,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent, padding=16)
         self.body.setSpacing(6)
         self.setToolTip("Clic para ver la explicación")
@@ -49,6 +52,16 @@ class ConceptCard(ClickableCard):
         analogy.body.addWidget(IconText("analogy", concept.analogy, color=current_palette().syntax_annotation,
                                         role="body"))
         details.addWidget(analogy)
+        if on_delete is not None:
+            actions = QHBoxLayout()
+            actions.addStretch(1)
+            delete = QPushButton("Borrar este concepto")
+            delete.setIcon(icon("delete"))
+            delete.setProperty("variant", "ghost")
+            delete.setToolTip("Lo quita de tu carpeta local. Podrás volver a generarlo con IA.")
+            delete.clicked.connect(lambda: on_delete(concept))
+            actions.addWidget(delete)
+            details.addLayout(actions)
         self._details.hide()
         self.body.addWidget(self._details)
 

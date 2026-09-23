@@ -159,6 +159,14 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
 22. **Huecos de conocimiento**: `core/knowledge/coverage.py` lista lo que el proyecto usa y no
     tiene concepto, con su import real (`lombok.Data`). Es la entrada de GCQ-05: generar esos
     conceptos con IA, enviando solo el nombre y el import, nunca código del proyecto.
+23. **IA (GCQ-05).** `AIProvider.complete(AIRequest) -> AIResponse` con esquema JSON opcional;
+    los errores del SDK se traducen a `AIError` (tipo + mensaje en español). `AnthropicProvider`
+    usa `claude-opus-5` (configurable con `CODEQUEST_AI_MODEL`), salida estructurada
+    (`output_config.format`) y `fallbacks: "default"` ante rechazos. La IA nunca decide `id` ni
+    `matches` de un concepto; si no conoce el elemento lo dice (`known: false`) y no se inventa
+    nada. Lo generado pasa la validación común (un reintento con el motivo) y se guarda como
+    `source: ai`. La generación corre en `BackgroundTask`; la `KnowledgeBase` solo se modifica
+    en el hilo principal.
 
 ### Seguridad sobre el repositorio
 
@@ -183,7 +191,7 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
 
-Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · ⏳ 12 (GCQ-05), 13 (GCQ-06).
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · 🟡 12: base de IA y conceptos con IA (GCQ-05), "Explícamelo con mi código" (GCQ-06) · ⏳ 13 (GCQ-07).
 
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).
