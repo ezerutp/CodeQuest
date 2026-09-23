@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QHBoxLayout, QProgressBar, QPushButton, QVBoxLayou
 from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.roles import ComponentRole
+from codequest.core.knowledge.coverage import KnowledgeReport
 from codequest.ui.formatting import ai_indicator, duration, plural, role_count
 from codequest.ui.icons import icon
 from codequest.ui.pages.base import Page
@@ -38,6 +39,7 @@ EXTRA_ROLES: tuple[ComponentRole, ...] = (
 
 class DashboardPage(Page):
     change_project_requested = Signal()
+    concepts_requested = Signal()
     mode_selected = Signal(str)
     continue_requested = Signal()
 
@@ -64,6 +66,8 @@ class DashboardPage(Page):
         self.layout_.addWidget(self._extras)
         self._analysis_status = muted("")
         self.layout_.addWidget(self._analysis_status)
+        self._knowledge = self._build_knowledge_card()
+        self.layout_.addWidget(self._knowledge)
 
         self.layout_.addSpacing(8)
         self.layout_.addWidget(section_title("Asistente de IA"))
@@ -141,6 +145,29 @@ class DashboardPage(Page):
             self._role_tiles[role] = tile
             row.addWidget(tile)
         return row
+
+    def _build_knowledge_card(self) -> Card:
+        card = Card(padding=16)
+        row = QHBoxLayout()
+        self._knowledge_text = IconText("book", color=current_palette().syntax_annotation, role="body")
+        row.addWidget(self._knowledge_text, 1)
+        see = QPushButton("Ver conceptos")
+        see.setIcon(icon("concepts"))
+        see.setProperty("variant", "ghost")
+        see.clicked.connect(self.concepts_requested)
+        row.addWidget(see)
+        card.body.addLayout(row)
+        card.hide()
+        return card
+
+    def set_knowledge(self, report: KnowledgeReport) -> None:
+        text = f"Conozco {report.known_count} de los {report.total_count} conceptos que usa tu proyecto."
+        if report.gaps:
+            names = ", ".join(g.display for g in report.gaps[:4]) + ("…" if len(report.gaps) > 4 else "")
+            text += f" Todavía no sé explicarte: {names}"
+        self._knowledge_text.set_text(text)
+        self._knowledge.setVisible(report.total_count > 0)
+        self.content_changed()
 
     def _build_ai_card(self) -> Card:
         card = Card(padding=18)
@@ -237,6 +264,7 @@ class DashboardPage(Page):
         self.content_changed()
 
     def _reset_stats(self) -> None:
+        self._knowledge.hide()
         self._files_tile.set_value("—")
         for tile in self._role_tiles.values():
             tile.set_value("—")

@@ -1,0 +1,171 @@
+# JPA: entidades, columnas y relaciones
+# Formato: docs/KNOWLEDGE.md
+
+version: 1
+concepts:
+- id: jpa.entity
+  title: '@Entity'
+  topic: jpa
+  matches:
+    annotations:
+    - Entity
+  summary: 'Indica que la clase se guarda en la base de datos: una tabla, y cada objeto una fila.'
+  explanation: |
+    Una entidad es una clase Java que representa una tabla. JPA (normalmente con Hibernate) traduce sus campos a columnas y se encarga de los INSERT, UPDATE y SELECT.
+
+    Toda entidad necesita un campo @Id que la identifique y un constructor sin argumentos.
+  analogy: 'Es el molde de una ficha de archivo: la clase define los apartados y cada ficha rellenada es una fila.'
+  distractors:
+  - Marca la clase como objeto de transferencia que solo viaja entre el cliente y el servidor.
+  - Registra la clase como servicio para inyectarla en los controladores.
+  - Hace que la clase no pueda modificarse una vez creada.
+  youtube_query: JPA @Entity Spring Boot
+- id: jpa.table
+  title: '@Table'
+  topic: jpa
+  matches:
+    annotations:
+    - Table
+  summary: 'Personaliza la tabla a la que se asocia la entidad: su nombre, índices o restricciones.'
+  explanation: |
+    Sin @Table, JPA usa el nombre de la clase como nombre de tabla. Con @Table(name = "users") eliges otro, útil si la tabla ya existe o si el nombre es palabra reservada (como order).
+
+    También permite declarar restricciones, por ejemplo que el email sea único.
+  analogy: 'Es la etiqueta del cajón del archivador: el contenido es el mismo, pero decides qué nombre lleva fuera.'
+  distractors:
+  - Hace que la entidad se muestre como una tabla HTML en las respuestas de la API REST.
+  - Crea una tabla temporal en memoria que se borra al terminar la petición.
+  - Indica cuántas filas como máximo puede guardar la entidad.
+  youtube_query: JPA @Table name uniqueConstraints
+- id: jpa.id
+  title: '@Id'
+  topic: jpa
+  matches:
+    annotations:
+    - Id
+  summary: Marca el campo como clave primaria, el valor que identifica cada fila.
+  explanation: |
+    JPA necesita saber qué campo distingue a cada registro para poder buscarlo, actualizarlo o borrarlo. Ese campo es el @Id.
+
+    Casi siempre va junto a @GeneratedValue para que el valor lo genere la base de datos.
+  analogy: 'Es el número de DNI de cada fila: puede haber dos personas con el mismo nombre, pero no con el mismo DNI.'
+  distractors:
+  - Hace que el campo se oculte en las respuestas JSON de la API.
+  - Indica que el campo se usa para ordenar los resultados de las consultas.
+  - Convierte el campo en una referencia a otra entidad relacionada.
+  youtube_query: JPA @Id @GeneratedValue
+- id: jpa.generated-value
+  title: '@GeneratedValue'
+  topic: jpa
+  matches:
+    annotations:
+    - GeneratedValue
+  summary: Indica que el valor de la clave primaria se genera automáticamente al insertar.
+  explanation: |
+    Con strategy = GenerationType.IDENTITY el id lo asigna la base de datos (AUTO_INCREMENT en MySQL) al insertar la fila. Por eso, al crear un objeto nuevo, su id es null hasta que se guarda.
+
+    Otras estrategias, como SEQUENCE, usan secuencias de la base de datos.
+  analogy: 'Es como el número de turno de la carnicería: no lo eliges tú, te lo da la máquina al llegar.'
+  distractors:
+  - Genera automáticamente los getters y setters de todos los campos de la entidad.
+  - Rellena el campo con datos de ejemplo cuando la tabla está vacía.
+  - Genera un valor aleatorio nuevo cada vez que se lee el campo.
+  youtube_query: JPA GenerationType IDENTITY vs SEQUENCE
+- id: jpa.column
+  title: '@Column'
+  topic: jpa
+  matches:
+    annotations:
+    - Column
+  summary: 'Personaliza la columna del campo: su nombre, longitud o si admite nulos.'
+  explanation: |
+    Sin @Column, JPA crea una columna con el nombre del campo y valores por defecto. Con @Column(nullable = false, length = 120) defines reglas concretas.
+
+    Estas reglas afectan al esquema de la tabla; para validar los datos antes de guardarlos se usan además anotaciones como @NotBlank.
+  analogy: 'Es como configurar una casilla de un formulario: cuánto texto cabe y si es obligatoria.'
+  distractors:
+  - Hace que el campo se muestre como una columna en las tablas de la interfaz web.
+  - Ordena los resultados de las consultas por el valor de ese campo.
+  - Divide el valor del campo en varias columnas de la base de datos.
+  youtube_query: JPA @Column nullable length
+- id: jpa.one-to-many
+  title: '@OneToMany'
+  topic: jpa
+  matches:
+    annotations:
+    - OneToMany
+  summary: Relaciona una instancia con muchas de otra entidad, como un usuario con sus pedidos.
+  explanation: |
+    El campo suele ser una colección (List<Order>). Con mappedBy = "user" indicas que la clave foránea vive en la otra entidad (el campo user de Order, con @ManyToOne).
+
+    cascade = CascadeType.ALL propaga operaciones: al guardar o borrar el usuario también se guardan o borran sus pedidos.
+  analogy: 'Es como un profesor con su lista de alumnos: un profesor, muchos alumnos.'
+  distractors:
+  - Declara que muchas instancias de esta entidad pertenecen a una sola de otra entidad.
+  - Hace que la colección se guarde como texto en una sola columna de la tabla.
+  - Limita la relación a un único elemento aunque el campo sea una lista.
+  youtube_query: JPA @OneToMany mappedBy explicado
+- id: jpa.many-to-one
+  title: '@ManyToOne'
+  topic: jpa
+  matches:
+    annotations:
+    - ManyToOne
+  summary: Relaciona muchas instancias con una sola de otra entidad, como pedidos con su usuario.
+  explanation: |
+    Es el lado que guarda la clave foránea: la tabla orders tiene una columna user_id. Se suele acompañar de @JoinColumn para darle nombre a esa columna.
+
+    Con fetch = FetchType.LAZY el usuario no se carga hasta que accedes a él, evitando consultas innecesarias.
+  analogy: Es como muchos alumnos que apuntan en su ficha el nombre del mismo profesor.
+  distractors:
+  - Declara que una instancia de esta entidad tiene una lista de muchas instancias de otra.
+  - Fusiona varias tablas en una sola al arrancar la aplicación.
+  - Obliga a que cada valor del campo sea distinto en toda la tabla.
+  youtube_query: JPA @ManyToOne @JoinColumn
+- id: jpa.one-to-one
+  title: '@OneToOne'
+  topic: jpa
+  matches:
+    annotations:
+    - OneToOne
+  summary: Relaciona cada instancia con exactamente una de otra entidad, como usuario y perfil.
+  explanation: |
+    Una de las dos tablas guarda la clave foránea de la otra. Se usa para separar datos que van juntos pero que conviene tener en tablas distintas (datos opcionales, pesados o sensibles).
+  analogy: 'Es como una persona y su pasaporte: cada pasaporte pertenece a una sola persona y viceversa.'
+  distractors:
+  - Relaciona una instancia con muchas de otra entidad, como un profesor con sus alumnos.
+  - Hace que la entidad solo pueda tener una fila en toda la tabla.
+  - Copia los campos de la otra entidad dentro de esta al guardarla.
+  youtube_query: JPA @OneToOne ejemplo
+- id: jpa.many-to-many
+  title: '@ManyToMany'
+  topic: jpa
+  matches:
+    annotations:
+    - ManyToMany
+  summary: Relaciona muchas instancias con muchas de otra entidad mediante una tabla intermedia.
+  explanation: |
+    Por ejemplo, estudiantes y cursos: un estudiante tiene varios cursos y un curso varios estudiantes. JPA crea una tabla intermedia con las dos claves foráneas.
+
+    Si la relación necesita datos propios (fecha de inscripción, nota), conviene modelar la tabla intermedia como una entidad con dos @ManyToOne.
+  analogy: 'Es como las listas de reproducción: una canción está en muchas listas y cada lista tiene muchas canciones.'
+  distractors:
+  - Declara que una instancia de esta entidad se relaciona con exactamente una de otra.
+  - Duplica la entidad en varias bases de datos para repartir la carga.
+  - Permite que un mismo campo guarde valores de tipos distintos.
+  youtube_query: JPA @ManyToMany tabla intermedia
+- id: jpa.join-column
+  title: '@JoinColumn'
+  topic: jpa
+  matches:
+    annotations:
+    - JoinColumn
+  summary: Define la columna de clave foránea que une la entidad con la relacionada (user_id).
+  explanation: |
+    Acompaña a @ManyToOne o @OneToOne en el lado que guarda la referencia. @JoinColumn(name = "user_id") hace que la tabla tenga una columna user_id con el id del usuario relacionado.
+  analogy: 'Es el hilo que ata dos fichas del archivador: en una ficha apuntas el número de la otra.'
+  distractors:
+  - Une dos columnas de la tabla en una sola al guardar la entidad.
+  - Hace que el campo se incluya automáticamente en todas las consultas SQL con JOIN.
+  - Crea un índice de búsqueda de texto completo sobre el campo.
+  youtube_query: JPA @JoinColumn clave foránea

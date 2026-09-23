@@ -85,7 +85,7 @@ class SummaryView(QWidget):
             palette = current_palette()
             head.addWidget(icon_label("explain" if skipped else "incorrect", size=18,
                                       color=palette.syntax_annotation if skipped else palette.danger))
-            title = QLabel(inline_code_html(f"`{concept.title}` · {concept.topic.value}"))
+            title = QLabel(inline_code_html(f"`{concept.title}` · {concept.topic.label}"))
             title.setTextFormat(Qt.TextFormat.RichText)
             head.addWidget(title, 1)
             row.body.addLayout(head)

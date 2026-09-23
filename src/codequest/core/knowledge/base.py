@@ -1,72 +1,41 @@
-"""Consulta de la base de conocimiento: por id, por anotación o por supertipo."""
+"""Base de conocimiento por capas: integrada (prioritaria) + carpeta del usuario."""
 
-from collections.abc import Iterable, Mapping
+import logging
+from collections import Counter
+from collections.abc import Iterable
+from pathlib import Path
 
-from codequest.core.knowledge.models import Concept
+from codequest.core.knowledge.loader import LoadIssue, load_builtin, load_directory
+from codequest.core.knowledge.models import Concept, ConceptSource
 
-# Nombre simple de anotación -> id de concepto.
-ANNOTATION_CONCEPTS: Mapping[str, str] = {
-    "RestController": "spring.rest-controller",
-    "Controller": "spring.controller",
-    "RequestMapping": "spring.request-mapping",
-    "GetMapping": "spring.get-mapping",
-    "PostMapping": "spring.post-mapping",
-    "PutMapping": "spring.put-mapping",
-    "PatchMapping": "spring.patch-mapping",
-    "DeleteMapping": "spring.delete-mapping",
-    "PathVariable": "spring.path-variable",
-    "RequestBody": "spring.request-body",
-    "RequestParam": "spring.request-param",
-    "Service": "spring.service",
-    "Repository": "spring.repository-annotation",
-    "Component": "spring.component",
-    "Autowired": "spring.autowired",
-    "Configuration": "spring.configuration",
-    "Bean": "spring.bean",
-    "Value": "spring.value",
-    "SpringBootApplication": "spring.boot-application",
-    "Transactional": "spring.transactional",
-    "Entity": "jpa.entity",
-    "Table": "jpa.table",
-    "Id": "jpa.id",
-    "GeneratedValue": "jpa.generated-value",
-    "Column": "jpa.column",
-    "OneToMany": "jpa.one-to-many",
-    "ManyToOne": "jpa.many-to-one",
-    "OneToOne": "jpa.one-to-one",
-    "ManyToMany": "jpa.many-to-many",
-    "JoinColumn": "jpa.join-column",
-    "Query": "data.query",
-    "Valid": "validation.valid",
-    "NotBlank": "validation.not-blank",
-    "ExceptionHandler": "errors.exception-handler",
-    "RestControllerAdvice": "errors.controller-advice",
-    "ControllerAdvice": "errors.controller-advice",
-}
-
-# Nombre simple de supertipo (extends/implements) -> id de concepto.
-SUPERTYPE_CONCEPTS: Mapping[str, str] = {
-    "JpaRepository": "data.jpa-repository",
-    "CrudRepository": "data.crud-repository",
-    "ListCrudRepository": "data.crud-repository",
-}
-
-MIN_DISTRACTORS = 3
+log = logging.getLogger(__name__)
 
 
 class KnowledgeBase:
-    def __init__(self, concepts: Iterable[Concept], annotation_index: Mapping[str, str],
-                 supertype_index: Mapping[str, str]) -> None:
-        self._concepts = {c.id: c for c in concepts}
-        self._by_annotation = dict(annotation_index)
-        self._by_supertype = dict(supertype_index)
-        self._validate()
+    def __init__(self, concepts: Iterable[Concept], issues: Iterable[LoadIssue] = ()) -> None:
+        """Las capas llegan en orden de prioridad. Un id o una anotación ya reclamados por un
+        concepto anterior se descartan: el contenido integrado no puede ser reemplazado."""
+        self._concepts: dict[str, Concept] = {}
+        self._by_annotation: dict[str, Concept] = {}
+        self._by_supertype: dict[str, Concept] = {}
+        self.issues: list[LoadIssue] = list(issues)
+        for concept in concepts:
+            self._add(concept)
 
     @classmethod
     def default(cls) -> "KnowledgeBase":
-        from codequest.core.knowledge.spring import CONCEPTS
+        """Solo el conocimiento integrado (tests, o cuando no hay carpeta de usuario)."""
+        return cls(load_builtin())
 
-        return cls(CONCEPTS, ANNOTATION_CONCEPTS, SUPERTYPE_CONCEPTS)
+    @classmethod
+    def load(cls, user_directory: Path | None) -> "KnowledgeBase":
+        builtin = load_builtin()
+        if user_directory is None:
+            return cls(builtin)
+        user, issues = load_directory(user_directory)
+        kb = cls([*builtin, *user], issues)
+        log.info("Conocimiento: %s", dict(kb.source_counts()))
+        return kb
 
     @property
     def concepts(self) -> tuple[Concept, ...]:
@@ -76,21 +45,27 @@ class KnowledgeBase:
         return self._concepts.get(concept_id)
 
     def for_annotation(self, name: str) -> Concept | None:
-        concept_id = self._by_annotation.get(name)
-        return self._concepts.get(concept_id) if concept_id else None
+        return self._by_annotation.get(name)
 
     def for_supertype(self, name: str) -> Concept | None:
-        concept_id = self._by_supertype.get(name)
-        return self._concepts.get(concept_id) if concept_id else None
+        return self._by_supertype.get(name)
 
-    def _validate(self) -> None:
-        """Errores de contenido se detectan al arrancar (y en los tests), no a mitad de una partida."""
-        for index in (self._by_annotation, self._by_supertype):
-            missing = sorted(set(index.values()) - self._concepts.keys())
-            if missing:
-                raise ValueError(f"Conceptos inexistentes en el índice: {missing}")
-        for concept in self._concepts.values():
-            if len(set(concept.distractors)) < MIN_DISTRACTORS:
-                raise ValueError(f"{concept.id}: necesita al menos {MIN_DISTRACTORS} distractores distintos")
-            if concept.summary in concept.distractors:
-                raise ValueError(f"{concept.id}: la respuesta correcta aparece entre los distractores")
+    def source_counts(self) -> Counter[ConceptSource]:
+        return Counter(c.source for c in self._concepts.values())
+
+    def _add(self, concept: Concept) -> None:
+        conflicts = [f"id '{concept.id}'"] if concept.id in self._concepts else []
+        conflicts += [f"@{a}" for a in concept.matches.annotations if a in self._by_annotation]
+        conflicts += [s for s in concept.matches.supertypes if s in self._by_supertype]
+        if conflicts:
+            if concept.source is ConceptSource.BUILTIN:
+                raise ValueError(f"Conocimiento integrado duplicado en {concept.id}: {', '.join(conflicts)}")
+            message = f"ya existe un concepto para {', '.join(conflicts)}; se usa el existente"
+            log.warning("Concepto %s ignorado: %s", concept.id, message)
+            self.issues.append(LoadIssue(concept.id, message))
+            return
+        self._concepts[concept.id] = concept
+        for name in concept.matches.annotations:
+            self._by_annotation[name] = concept
+        for name in concept.matches.supertypes:
+            self._by_supertype[name] = concept

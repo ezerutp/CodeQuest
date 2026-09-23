@@ -25,6 +25,7 @@ from codequest.services.learning_service import LearningService
 from codequest.services.project_service import ProjectService
 from codequest.ui.navigation import PageId, Sidebar
 from codequest.ui.pages.base import Page
+from codequest.ui.pages.concepts.page import ConceptsPage
 from codequest.ui.pages.dashboard import DashboardPage
 from codequest.ui.pages.explorer.page import ProjectExplorerPage
 from codequest.ui.pages.learn.page import LearnPage
@@ -36,14 +37,13 @@ log = logging.getLogger(__name__)
 # Secciones aún no implementadas. El id de página coincide con el nombre de su icono.
 PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
     (PageId.PROGRESS, "Progreso", "Tu dominio por tema, XP y rachas."),
-    (PageId.CONCEPTS, "Conceptos", "Las anotaciones y patrones de tu proyecto."),
     (PageId.SETTINGS, "Configuración", "IA, apariencia y datos."),
 )
 
 
 class MainWindow(QMainWindow):
     def __init__(self, context: AppContext, service: ProjectService,
-                 learning: LearningService | None = None) -> None:
+                 learning: LearningService | None = None, knowledge_dir: Path | None = None) -> None:
         super().__init__()
         self._context = context
         self._service = service
@@ -62,6 +62,7 @@ class MainWindow(QMainWindow):
         self._dashboard.change_project_requested.connect(self._choose_project)
         self._dashboard.continue_requested.connect(lambda: self._start_round(None))
         self._dashboard.mode_selected.connect(self._start_mode)
+        self._dashboard.concepts_requested.connect(lambda: self.show_page(PageId.CONCEPTS))
         self._add_page(PageId.HOME, self._dashboard)
 
         self._learn = LearnPage(load_snippet=lambda ref: service.read_snippet(self._model, ref))
@@ -74,6 +75,8 @@ class MainWindow(QMainWindow):
         self._explorer = ProjectExplorerPage(load_source=lambda model, cls: service.read_source(model, cls, True))
         self._explorer.practice_requested.connect(lambda cls: self._start_round(cls.qualified_name))
         self._add_page(PageId.PROJECT, self._explorer)
+        self._concepts = ConceptsPage(self._learning.kb, knowledge_dir)
+        self._add_page(PageId.CONCEPTS, self._concepts)
         for page_id, title, description in PLACEHOLDER_PAGES:
             self._add_page(page_id, PlaceholderPage(page_id.value, title, description))
 
@@ -131,6 +134,9 @@ class MainWindow(QMainWindow):
             self._apply_context()
         for page in self._pages.values():
             page.set_model(model)
+        report = self._learning.knowledge_report(model)
+        self._dashboard.set_knowledge(report)
+        self._concepts.set_report(report)
 
     # --- aprendizaje ------------------------------------------------------------
 

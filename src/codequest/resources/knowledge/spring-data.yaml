@@ -1,0 +1,74 @@
+# Spring Data: repositorios y consultas
+# Formato: docs/KNOWLEDGE.md
+
+version: 1
+concepts:
+- id: spring.repository-annotation
+  title: '@Repository'
+  topic: data
+  matches:
+    annotations:
+    - Repository
+  summary: Marca la clase de acceso a datos y traduce los errores de BD a excepciones de Spring.
+  explanation: |
+    @Repository es otra especialización de @Component pensada para la capa de persistencia. Además de registrar el bean, activa la traducción de excepciones: un error específico de MySQL se convierte en una DataAccessException de Spring.
+
+    En las interfaces que extienden JpaRepository no hace falta ponerla: Spring Data ya las detecta y registra.
+  analogy: 'Es el archivero de la empresa: el único que sabe dónde está guardado cada documento.'
+  distractors:
+  - Crea automáticamente la tabla de la base de datos a partir de los campos de la clase.
+  - Guarda en caché los resultados de todos los métodos de la clase.
+  - Expone los métodos de la clase como endpoints REST de consulta.
+  youtube_query: Spring @Repository explicado
+- id: data.jpa-repository
+  title: JpaRepository
+  topic: data
+  matches:
+    supertypes:
+    - JpaRepository
+  summary: Obtiene sin escribir código los métodos CRUD, más paginación y ordenación.
+  explanation: |
+    Al declarar interface UserRepository extends JpaRepository<User, Long>, Spring Data genera en tiempo de ejecución una implementación con todos esos métodos. User es la entidad y Long el tipo de su @Id.
+
+    Además puedes declarar métodos como findByEmail(String email) y Spring deduce la consulta a partir del nombre.
+  analogy: 'Es como contratar un archivero ya formado: sabe guardar, buscar y tirar fichas sin que le expliques cómo.'
+  distractors:
+  - Convierte la interfaz en un controlador REST que expone la tabla en la API.
+  - Obliga a escribir a mano la implementación SQL de cada método de la interfaz.
+  - Crea una copia en memoria de la tabla que no se guarda en la base de datos.
+  youtube_query: Spring Data JpaRepository explicado
+- id: data.crud-repository
+  title: CrudRepository
+  topic: data
+  matches:
+    supertypes:
+    - CrudRepository
+    - ListCrudRepository
+  summary: Obtiene sin escribir código las operaciones básicas de crear, leer, actualizar y borrar.
+  explanation: |
+    CrudRepository es la interfaz más básica de Spring Data con métodos como save, findById, findAll, count y deleteById. JpaRepository la amplía con paginación, ordenación y operaciones por lotes.
+
+    Igual que JpaRepository, Spring genera la implementación en tiempo de ejecución.
+  analogy: 'Es el kit básico de herramientas: lo imprescindible, sin los accesorios del kit profesional.'
+  distractors:
+  - Genera automáticamente los endpoints REST de creación, lectura, actualización y borrado.
+  - Registra la interfaz como una tabla nueva en la base de datos.
+  - Obliga a que todas las operaciones se ejecuten en modo solo lectura.
+  youtube_query: CrudRepository vs JpaRepository
+- id: data.query
+  title: '@Query'
+  topic: data
+  matches:
+    annotations:
+    - Query
+  summary: Define a mano la consulta (JPQL o SQL) del método en lugar de deducirla de su nombre.
+  explanation: |
+    Cuando el nombre del método no basta (consultas con varias condiciones, joins, LIKE…), @Query("SELECT u FROM User u WHERE …") permite escribirla tú.
+
+    Por defecto es JPQL, que trabaja con entidades y campos Java; con nativeQuery = true puedes escribir SQL de la base de datos.
+  analogy: Es darle al archivero una instrucción exacta por escrito en vez de confiar en que adivine qué buscas.
+  distractors:
+  - Hace que el método del repositorio se ejecute automáticamente cada cierto tiempo.
+  - Registra la consulta en el log sin ejecutarla contra la base de datos.
+  - Convierte el resultado del método en un parámetro de la URL.
+  youtube_query: Spring Data @Query JPQL
