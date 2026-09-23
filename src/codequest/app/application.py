@@ -30,6 +30,18 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _install_qt_translations(app) -> None:
+    """Textos estándar de Qt (selector de carpetas, menús contextuales…) en español, como la app."""
+    from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
+
+    translator = QTranslator(app)
+    directory = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if translator.load(QLocale(QLocale.Language.Spanish), "qtbase", "_", directory):
+        app.installTranslator(translator)
+    else:
+        log.debug("Traducciones de Qt no encontradas en %s", directory)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     log_file = setup_logging(debug=args.debug)
@@ -53,12 +65,14 @@ def main(argv: list[str] | None = None) -> int:
     from PySide6.QtWidgets import QApplication
 
     from codequest.ui.main_window import MainWindow
-    from codequest.ui.theme import DARK, load_stylesheet
+    from codequest.ui.theme import DARK, apply_palette, load_stylesheet
 
     app = QApplication(sys.argv[:1])
+    _install_qt_translations(app)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
     app.setStyle("Fusion")  # base consistente entre sistemas; QSS la refina
+    apply_palette(app, DARK)  # también para diálogos y ventanas secundarias
     app.setStyleSheet(load_stylesheet(DARK))
 
     window = MainWindow(context, service, learning, user_knowledge, knowledge)

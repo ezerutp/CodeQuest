@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QMainWindow,
-    QMessageBox,
     QStackedWidget,
     QWidget,
 )
@@ -24,6 +23,7 @@ from codequest.core.project.models import ProjectInfo
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.project_service import ProjectService
+from codequest.ui.dialogs import warn
 from codequest.ui.navigation import PageId, Sidebar
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.concepts.page import ConceptsPage
@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
             self._concepts.show_generation_result(result, report)
 
     def _on_ai_task_failed(self, message: str) -> None:
-        QMessageBox.warning(self, APP_NAME, f"No se pudo completar la generación con IA:\n{message}")
+        warn(self, "No se pudo completar la generación con IA.", details=message)
         if self._model is not None:
             self._concepts.show_generation_result(None, self._learning.knowledge_report(self._model))
 
@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
             project = self._service.detect(Path(directory))
         except OSError as exc:
             log.warning("No se pudo abrir el proyecto %s: %s", directory, exc)
-            QMessageBox.warning(self, APP_NAME, f"No se pudo abrir el proyecto:\n{exc}")
+            warn(self, "No se pudo abrir el proyecto.", details=str(exc))
             return
         self._set_project(project)
         self.show_page(PageId.HOME)
