@@ -1,0 +1,27 @@
+QFrame#Card {
+    background: ${surface};
+    border: 1px solid ${border};
+    border-radius: 12px;
+}
+
+QFrame#Card[variant="hero"] {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 ${accent_soft}, stop:0.6 ${surface});
+    border-color: ${border_strong};
+}
+
+QFrame#Card[variant="warning"] {
+    background: ${warning_soft};
+    border-color: ${warning};
+}
+
+QFrame#Card[interactive="true"]:enabled:hover {
+    background: ${surface_hover};
+    border-color: ${accent};
+}
+
+#StatValue { font-size: 28px; font-weight: 700; }
+#StatLabel { color: ${text_muted}; font-size: 13px; }
+
+#ModeTitle { font-size: 15px; font-weight: 600; }
+#ModeDescription { color: ${text_muted}; font-size: 13px; }

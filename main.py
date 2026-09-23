@@ -1,0 +1,14 @@
+"""Atajo para ejecutar CodeQuest sin instalarlo: ``python /ruta/CodeQuest/main.py``.
+
+El proyecto analizado sigue siendo el directorio actual (cwd), no esta carpeta.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+from codequest.app.application import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())

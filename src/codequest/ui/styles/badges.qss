@@ -1,0 +1,17 @@
+QFrame#Chip {
+    background: ${surface_raised};
+    border: 1px solid ${border};
+    border-radius: 11px;
+}
+QFrame#Chip[tone="accent"] {
+    background: ${accent_soft};
+    border-color: ${accent};
+}
+#ChipText { font-size: 12px; font-weight: 500; }
+QFrame#Chip[tone="muted"] #ChipText { color: ${text_muted}; }
+
+QLabel#StatusDot { font-size: 12px; }
+QLabel#StatusDot[state="on"] { color: ${success}; }
+QLabel#StatusDot[state="off"] { color: ${text_subtle}; }
+QLabel#StatusDot[state="warn"] { color: ${warning}; }
+QLabel#StatusText { color: ${text_muted}; font-size: 13px; }

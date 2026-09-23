@@ -1,0 +1,30 @@
+#Sidebar {
+    background: ${bg_sidebar};
+    border-right: 1px solid ${border};
+}
+
+#SidebarLogo { font-size: 17px; font-weight: 700; }
+
+QPushButton#NavButton {
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: ${text_muted};
+    font-size: 14px;
+    padding: 9px 12px;
+    text-align: left;
+}
+QPushButton#NavButton:hover {
+    background: ${surface};
+    color: ${text};
+}
+QPushButton#NavButton:checked {
+    background: ${accent_soft};
+    color: ${text};
+    font-weight: 600;
+}
+
+#SidebarFooter {
+    border-top: 1px solid ${border};
+}
+#SidebarProjectName { font-weight: 600; }
