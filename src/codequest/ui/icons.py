@@ -51,6 +51,7 @@ ICONS: dict[str, str] = {
     "folder-open": "mdi6.folder-open-outline",
     "chevron-down": "mdi6.chevron-down",
     "chevron-up": "mdi6.chevron-up",
+    "delete": "mdi6.trash-can-outline",
     "role.entity": "mdi6.database-outline",
     "role.controller": "mdi6.api",
     "role.service": "mdi6.cog-transfer-outline",

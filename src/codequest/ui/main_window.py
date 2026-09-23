@@ -21,6 +21,7 @@ from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.package_tree import display_name
 from codequest.core.games.catalog import MULTIPLE_CHOICE, mode_info
 from codequest.core.project.models import ProjectInfo
+from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.project_service import ProjectService
 from codequest.ui.navigation import PageId, Sidebar
@@ -30,7 +31,7 @@ from codequest.ui.pages.dashboard import DashboardPage
 from codequest.ui.pages.explorer.page import ProjectExplorerPage
 from codequest.ui.pages.learn.page import LearnPage
 from codequest.ui.pages.placeholder import PlaceholderPage
-from codequest.ui.workers import AnalysisRunner
+from codequest.ui.workers import AnalysisRunner, BackgroundTask
 
 log = logging.getLogger(__name__)
 
@@ -43,11 +44,13 @@ PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
 
 class MainWindow(QMainWindow):
     def __init__(self, context: AppContext, service: ProjectService,
-                 learning: LearningService | None = None, knowledge_dir: Path | None = None) -> None:
+                 learning: LearningService | None = None, knowledge_dir: Path | None = None,
+                 knowledge: KnowledgeService | None = None) -> None:
         super().__init__()
         self._context = context
         self._service = service
         self._learning = learning or LearningService()
+        self._knowledge = knowledge or KnowledgeService(self._learning.kb, store=None, provider=None)
         self._model: ProjectModel | None = None
         self._last_scope: str | None = None  # clase de la última ronda, para "Otra ronda"
 
@@ -75,8 +78,14 @@ class MainWindow(QMainWindow):
         self._explorer = ProjectExplorerPage(load_source=lambda model, cls: service.read_source(model, cls, True))
         self._explorer.practice_requested.connect(lambda cls: self._start_round(cls.qualified_name))
         self._add_page(PageId.PROJECT, self._explorer)
-        self._concepts = ConceptsPage(self._learning.kb, knowledge_dir)
+        self._concepts = ConceptsPage(self._knowledge, knowledge_dir)
+        self._concepts.generate_requested.connect(self._generate_concepts)
+        self._concepts.delete_requested.connect(self._delete_concept)
         self._add_page(PageId.CONCEPTS, self._concepts)
+        self._ai_task = BackgroundTask(self)
+        self._ai_task.progress.connect(self._concepts.show_generation_progress)
+        self._ai_task.finished.connect(self._on_concepts_generated)
+        self._ai_task.failed.connect(self._on_ai_task_failed)
         for page_id, title, description in PLACEHOLDER_PAGES:
             self._add_page(page_id, PlaceholderPage(page_id.value, title, description))
 
@@ -134,9 +143,39 @@ class MainWindow(QMainWindow):
             self._apply_context()
         for page in self._pages.values():
             page.set_model(model)
-        report = self._learning.knowledge_report(model)
+        self._refresh_knowledge()
+
+    # --- conocimiento e IA ---------------------------------------------------------
+
+    def _refresh_knowledge(self) -> None:
+        if self._model is None:
+            return
+        report = self._learning.knowledge_report(self._model)
         self._dashboard.set_knowledge(report)
         self._concepts.set_report(report)
+
+    def _generate_concepts(self, gaps) -> None:
+        if not self._knowledge.can_generate or self._ai_task.is_running:
+            return
+        self._concepts.show_generation_started(len(gaps))
+        self._ai_task.start(lambda progress, cancel: self._knowledge.generate(gaps, progress, cancel))
+
+    def _on_concepts_generated(self, result: GenerationResult) -> None:
+        # Hilo principal: aquí sí se modifica la base de conocimiento.
+        self._knowledge.register(result.created)
+        report = self._learning.knowledge_report(self._model) if self._model else None
+        if report is not None:
+            self._dashboard.set_knowledge(report)
+            self._concepts.show_generation_result(result, report)
+
+    def _on_ai_task_failed(self, message: str) -> None:
+        QMessageBox.warning(self, APP_NAME, f"No se pudo completar la generación con IA:\n{message}")
+        if self._model is not None:
+            self._concepts.show_generation_result(None, self._learning.knowledge_report(self._model))
+
+    def _delete_concept(self, concept_id: str) -> None:
+        if self._knowledge.delete(concept_id):
+            self._refresh_knowledge()
 
     # --- aprendizaje ------------------------------------------------------------
 
@@ -192,4 +231,5 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (API de Qt)
         self._runner.shutdown()
+        self._ai_task.shutdown()
         super().closeEvent(event)

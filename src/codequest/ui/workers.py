@@ -8,6 +8,8 @@ hilo principal, Qt los entrega en ese hilo y la UI puede actualizarse sin riesgo
 import logging
 import threading
 import time
+from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
@@ -126,3 +128,83 @@ class AnalysisRunner(QObject):
             thread, _worker = entry
             thread.quit()
             thread.wait()
+
+
+TaskFunction = Callable[[Callable[[int, int], None], threading.Event], Any]
+
+
+class _TaskWorker(QObject):
+    progress = Signal(int, int)
+    finished = Signal(object)
+    failed = Signal(str)
+    done = Signal()
+
+    def __init__(self, function: TaskFunction, cancel: threading.Event) -> None:
+        super().__init__()
+        self._function = function
+        self._cancel = cancel
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self.finished.emit(self._function(self.progress.emit, self._cancel))
+        except Exception as exc:  # la UI muestra el error; el detalle queda en el log
+            log.exception("Falló una tarea en segundo plano")
+            self.failed.emit(str(exc))
+        finally:
+            self.done.emit()
+
+
+class BackgroundTask(QObject):
+    """Ejecuta una función (p. ej. una llamada a la IA) en un QThread. Una a la vez.
+
+    La función recibe `(on_progress, cancel_event)`; su resultado llega por `finished`
+    en el hilo principal.
+    """
+
+    progress = Signal(int, int)
+    finished = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._thread: QThread | None = None
+        self._worker: _TaskWorker | None = None
+        self._cancel = threading.Event()
+
+    @property
+    def is_running(self) -> bool:
+        return self._thread is not None
+
+    def start(self, function: TaskFunction) -> bool:
+        if self.is_running:
+            return False
+        self._cancel = threading.Event()
+        self._thread = QThread()
+        self._worker = _TaskWorker(function, self._cancel)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.progress.connect(self.progress)
+        self._worker.finished.connect(self.finished)
+        self._worker.failed.connect(self.failed)
+        self._worker.done.connect(self._on_done)
+        self._thread.start()
+        return True
+
+    def cancel(self) -> None:
+        self._cancel.set()
+
+    def shutdown(self, timeout_ms: int = 3000) -> None:
+        self.cancel()
+        if self._thread is not None:
+            self._thread.quit()
+            if not self._thread.wait(timeout_ms):
+                log.warning("Una tarea en segundo plano no terminó a tiempo")
+
+    @Slot()
+    def _on_done(self) -> None:
+        if self._thread is not None:
+            self._thread.quit()
+            self._thread.wait()
+        self._thread = None
+        self._worker = None
