@@ -92,3 +92,29 @@ def test_unreadable_snippet_does_not_break_the_round(qapp: QApplication) -> None
     view.start(_session(), None)
 
     assert "archivo borrado" in view._editor.code()
+
+
+def test_ai_box_hidden_without_ai(qapp: QApplication) -> None:
+    view = _view([])
+    view.start(_session(), None)
+    view._skip()
+
+    assert view._feedback._ai.isHidden()
+
+
+def test_late_ai_answer_for_previous_question_is_discarded(qapp: QApplication) -> None:
+    view = _view([])
+    view.set_ai_available(True, "Claude")
+    session = _session()
+    view.start(session, None)
+    view._skip()
+    first_key = session.current.key
+    assert not view._feedback._ai.isHidden()
+
+    view._go_next()  # el estudiante sigue antes de que llegue la respuesta
+    view._skip()
+    view.show_ai_answer(first_key, "respuesta tardía")
+    assert view._feedback._ai._answer.isHidden()
+
+    view.show_ai_answer(session.current.key, "respuesta actual")
+    assert "respuesta actual" in view._feedback._ai._answer.text()
