@@ -1,0 +1,143 @@
+# Spring: componentes, inyección de dependencias, configuración y transacciones
+# Formato: docs/KNOWLEDGE.md
+
+version: 1
+concepts:
+- id: spring.service
+  title: '@Service'
+  topic: di
+  matches:
+    annotations:
+    - Service
+  summary: Marca la clase como componente de lógica de negocio que Spring crea e inyecta.
+  explanation: |
+    @Service es una especialización de @Component: Spring la detecta al arrancar, crea un único objeto (un bean) y lo inyecta en los controladores u otros servicios que lo pidan.
+
+    Técnicamente funciona igual que @Component, pero comunica la intención: aquí viven las reglas de negocio, entre el controlador (web) y el repositorio (datos).
+  analogy: 'Es la cocina de un restaurante: el camarero (controlador) toma el pedido, pero donde se prepara el plato es aquí.'
+  distractors:
+  - Expone la clase como servicio web accesible directamente desde el navegador.
+  - Hace que la clase se ejecute en un hilo separado cada vez que se llama.
+  - Convierte la clase en una entidad que Spring guarda en la base de datos.
+  youtube_query: Spring Boot @Service capa de servicio
+- id: spring.component
+  title: '@Component'
+  topic: di
+  matches:
+    annotations:
+    - Component
+  summary: Registra la clase como bean genérico para que Spring la cree y pueda inyectarla.
+  explanation: |
+    Es la anotación base del escaneo de componentes. @Service, @Repository y @Controller son variantes de @Component con un significado más específico.
+
+    Se usa para clases de apoyo que no encajan en esas capas: helpers, listeners, validadores personalizados…
+  analogy: 'Es como darte de alta en el registro del edificio: a partir de ahí, cualquiera que te necesite sabe dónde encontrarte.'
+  distractors:
+  - Convierte la clase en un componente visual que se muestra en la interfaz web.
+  - Divide la clase en varios módulos que se cargan de forma independiente.
+  - Marca la clase como abstracta para que no se pueda instanciar.
+  youtube_query: Spring @Component escaneo de componentes
+- id: spring.autowired
+  title: '@Autowired'
+  topic: di
+  matches:
+    annotations:
+    - Autowired
+  summary: Pide a Spring que inyecte automáticamente otro bean en ese campo o constructor.
+  explanation: |
+    En lugar de hacer new UserRepository(), declaras que lo necesitas y Spring te entrega la instancia que gestiona. Eso es inyección de dependencias.
+
+    Hoy se recomienda la inyección por constructor (un constructor con las dependencias como parámetros, sin @Autowired), porque permite campos final y facilita los tests.
+  analogy: 'Es como pedir en recepción una herramienta: no la fabricas tú, alguien te la trae ya lista.'
+  distractors:
+  - Genera automáticamente los getters y setters del campo anotado.
+  - Hace que el campo se guarde automáticamente en la base de datos al cambiar.
+  - Crea una copia nueva del objeto cada vez que se accede al campo.
+  youtube_query: Spring @Autowired vs inyección por constructor
+- id: spring.configuration
+  title: '@Configuration'
+  topic: config
+  matches:
+    annotations:
+    - Configuration
+  summary: Marca la clase como fuente de configuración cuyos métodos @Bean definen beans.
+  explanation: |
+    Una clase @Configuration es el lugar donde declaras, con código Java, beans que no puedes anotar directamente, por ejemplo un PasswordEncoder o un cliente HTTP de una librería externa.
+
+    Spring la procesa al arrancar y registra lo que devuelven sus métodos @Bean.
+  analogy: 'Es el manual de montaje del contenedor: indica qué piezas especiales hay que fabricar y cómo.'
+  distractors:
+  - Lee el archivo application.properties y lo convierte en una tabla de la base de datos.
+  - Marca la clase como controlador de las pantallas de ajustes de la aplicación.
+  - Impide que se modifique la clase una vez que la aplicación ha arrancado.
+  youtube_query: Spring @Configuration @Bean
+- id: spring.bean
+  title: '@Bean'
+  topic: config
+  matches:
+    annotations:
+    - Bean
+  summary: Registra como bean de Spring el objeto que devuelve el método, para poder inyectarlo.
+  explanation: |
+    Se usa dentro de clases @Configuration. Spring llama al método una vez, guarda el objeto devuelto y lo inyecta en quien lo necesite.
+
+    Es la forma de convertir en bean una clase que no es tuya (de una librería) y que por tanto no puedes anotar con @Component.
+  analogy: 'Es como encargar una pieza a medida: el método explica cómo fabricarla y Spring la guarda en el almacén.'
+  distractors:
+  - Convierte el método en un endpoint HTTP que devuelve la configuración actual de la app.
+  - Hace que el método se ejecute cada vez que se inyecta la dependencia.
+  - Marca el método como obsoleto para que Spring lo ignore al arrancar.
+  youtube_query: Spring @Bean explicado
+- id: spring.value
+  title: '@Value'
+  topic: config
+  matches:
+    annotations:
+    - Value
+  summary: Inyecta un valor de configuración, como una propiedad de application.properties.
+  explanation: |
+    Con @Value("${app.jwt.secret}") Spring busca la propiedad app.jwt.secret en la configuración (application.properties, variables de entorno…) y la asigna al campo.
+
+    Así los valores que cambian entre entornos no quedan escritos en el código.
+  analogy: 'Es como un formulario con huecos: el código deja el hueco y la configuración lo rellena.'
+  distractors:
+  - Marca el campo como obligatorio para que no pueda guardarse vacío en la base de datos.
+  - Convierte el campo en una constante que no puede cambiar después de compilar.
+  - Valida que el valor del campo tenga el formato indicado entre paréntesis.
+  youtube_query: Spring Boot @Value application.properties
+- id: spring.boot-application
+  title: '@SpringBootApplication'
+  topic: config
+  matches:
+    annotations:
+    - SpringBootApplication
+  summary: Marca la clase principal y activa la autoconfiguración y el escaneo de componentes.
+  explanation: |
+    Combina @Configuration, @EnableAutoConfiguration y @ComponentScan. Por eso Spring encuentra tus controladores y servicios: busca en el paquete de esta clase y en sus subpaquetes.
+
+    La autoconfiguración revisa tus dependencias (por ejemplo, el driver de MySQL) y configura lo necesario sin que escribas nada.
+  analogy: 'Es el interruptor general de la casa: al encenderlo se activan todas las instalaciones.'
+  distractors:
+  - Convierte la clase en el único controlador REST de la aplicación.
+  - Define la versión de Java con la que debe compilarse el proyecto.
+  - Crea automáticamente la base de datos y todas sus tablas al compilar el proyecto.
+  youtube_query: '@SpringBootApplication qué hace'
+- id: spring.transactional
+  title: '@Transactional'
+  topic: transactions
+  matches:
+    annotations:
+    - Transactional
+  summary: Hace que las operaciones de base de datos se ejecuten dentro de una transacción.
+  explanation: |
+    @Transactional le indica a Spring que todo lo que el método hace en la base de datos forma parte de una sola transacción.
+
+    Imagina que tienes que hacer tres cambios: descontar dinero, registrar el movimiento y depositar el dinero. Si el tercero falla, no quieres que los dos primeros queden guardados. Con @Transactional, ante una excepción Spring revierte (rollback) la operación completa.
+
+    Con readOnly = true se avisa de que solo se leerá, lo que permite algunas optimizaciones.
+  analogy: 'Es como guardar la partida solo cuando todas las acciones de la misión se completaron: si mueres a mitad, vuelves al último punto guardado.'
+  distractors:
+  - Convierte el método en un endpoint HTTP que se puede llamar desde el navegador.
+  - Hace que el resultado del método se convierta automáticamente en JSON.
+  - Inyecta automáticamente el repositorio que usa el método.
+  youtube_query: Spring @Transactional explicado rollback

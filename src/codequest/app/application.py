@@ -9,7 +9,10 @@ from codequest import __version__
 from codequest.app.constants import APP_NAME, APP_SLUG, APP_TAGLINE
 from codequest.app.context import AppContext
 from codequest.app.logging_setup import setup_logging
+from codequest.app.paths import knowledge_dir
 from codequest.core.ai.availability import detect_ai_status
+from codequest.core.knowledge.base import KnowledgeBase
+from codequest.services.learning_service import LearningService
 from codequest.services.project_service import ProjectService
 
 log = logging.getLogger(__name__)
@@ -38,6 +41,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     context = AppContext(project=project, ai=detect_ai_status())
+    user_knowledge = knowledge_dir()
+    learning = LearningService(KnowledgeBase.load(user_knowledge))
 
     # Qt se importa aquí para que --help/--version no necesiten cargarlo.
     from PySide6.QtWidgets import QApplication
@@ -51,6 +56,6 @@ def main(argv: list[str] | None = None) -> int:
     app.setStyle("Fusion")  # base consistente entre sistemas; QSS la refina
     app.setStyleSheet(load_stylesheet(DARK))
 
-    window = MainWindow(context, service)
+    window = MainWindow(context, service, learning, user_knowledge)
     window.show()
     return app.exec()

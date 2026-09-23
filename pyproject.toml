@@ -12,6 +12,7 @@ dependencies = [
     "PySide6>=6.7",
     "platformdirs>=4.2",
     "qtawesome>=1.3",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +26,7 @@ codequest = "codequest.app.application:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-codequest = ["ui/styles/*.qss"]
+codequest = ["ui/styles/*.qss", "resources/knowledge/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -37,7 +38,3 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I"]
-
-[tool.ruff.lint.per-file-ignores]
-# Contenido educativo en prosa: partir frases para cumplir 120 columnas empeora su edición.
-"src/codequest/core/knowledge/spring.py" = ["E501"]

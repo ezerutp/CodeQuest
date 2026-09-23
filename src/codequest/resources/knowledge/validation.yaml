@@ -1,0 +1,39 @@
+# Jakarta Validation
+# Formato: docs/KNOWLEDGE.md
+
+version: 1
+concepts:
+- id: validation.valid
+  title: '@Valid'
+  topic: validation
+  matches:
+    annotations:
+    - Valid
+  summary: Pide validar las reglas del objeto (como @NotBlank) antes de ejecutar el método.
+  explanation: |
+    Si el objeto recibido incumple alguna regla, Spring no entra al método y responde con un error 400 (lanza MethodArgumentNotValidException), que puedes personalizar con un @ExceptionHandler.
+
+    Las reglas se declaran en los campos del DTO con anotaciones de Jakarta Validation.
+  analogy: 'Es el control de seguridad del aeropuerto: si tu equipaje no cumple las normas, no llegas a la puerta de embarque.'
+  distractors:
+  - Marca el método como válido para que Spring lo incluya en la documentación de la API.
+  - Comprueba que el usuario ha iniciado sesión antes de ejecutar el método.
+  - Guarda el objeto en la base de datos solo si todos sus campos están vacíos.
+  youtube_query: Spring Boot @Valid validación DTO
+- id: validation.not-blank
+  title: '@NotBlank'
+  topic: validation
+  matches:
+    annotations:
+    - NotBlank
+  summary: Exige que el texto no sea nulo, ni vacío, ni solo espacios al validar el objeto.
+  explanation: |
+    Es una regla de Jakarta Validation. Por sí sola no hace nada: se comprueba cuando el objeto se valida, por ejemplo al recibirlo con @Valid en un controlador.
+
+    Se diferencia de @NotNull (solo prohíbe null) y de @NotEmpty (prohíbe null y "", pero acepta "   ").
+  analogy: 'Es el asterisco rojo de un formulario: ese campo hay que rellenarlo de verdad.'
+  distractors:
+  - Rellena automáticamente el campo con un texto por defecto si llega vacío o nulo.
+  - Elimina los espacios en blanco del texto antes de guardarlo.
+  - Impide que el campo aparezca en la respuesta JSON cuando está vacío.
+  youtube_query: '@NotBlank vs @NotNull vs @NotEmpty'

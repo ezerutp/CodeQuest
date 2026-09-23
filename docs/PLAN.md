@@ -53,7 +53,7 @@
 
 | Capa | Paquete | Depende de | Regla |
 |------|---------|------------|-------|
-| Dominio / núcleo | `codequest.core` | solo stdlib (+ `anthropic` opcional en `core/ai/providers`) | **No importa Qt.** Testeable con pytest puro. |
+| Dominio / núcleo | `codequest.core` | stdlib + `pyyaml` (+ `anthropic` opcional en `core/ai/providers`) | **No importa Qt.** Testeable con pytest puro. |
 | Servicios de aplicación | `codequest.services` | `core` | Casos de uso: “analizar proyecto”, “siguiente ejercicio”, “registrar respuesta”. |
 | Presentación | `codequest.ui` | `services`, modelos de `core` | Widgets, páginas, workers Qt. Sin lógica de negocio. |
 
@@ -151,6 +151,14 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
 19. **Rondas variadas.** El generador agrupa por concepto y reparte round-robin: 10
     controllers no producen 10 preguntas de `@RestController`.
 20. **Catálogo de modos en `core/games/catalog.py`**: dashboard y Aprender muestran lo mismo.
+21. **Base de conocimiento en YAML por capas (GCQ-04)**: integrada (`resources/knowledge/`,
+    prioritaria) + carpeta del usuario (`platformdirs`, fuentes `user`/`ai`). Cada concepto
+    declara qué anotaciones/supertipos explica (`matches`), así los conceptos de la caché son
+    autosuficientes. Todo concepto pasa la misma validación. Formato: `docs/KNOWLEDGE.md`.
+    `core` pasa a depender de `pyyaml` (con el parser C de libyaml si está disponible).
+22. **Huecos de conocimiento**: `core/knowledge/coverage.py` lista lo que el proyecto usa y no
+    tiene concepto, con su import real (`lombok.Data`). Es la entrada de GCQ-05: generar esos
+    conceptos con IA, enviando solo el nombre y el import, nunca código del proyecto.
 
 ### Seguridad sobre el repositorio
 
@@ -175,7 +183,7 @@ repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetad
 
 ### MVP (v0.1) — “Conozco tu proyecto y te hago preguntas”
 
-Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ⏳ 12, 13.
+Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ-03) · ✅ base de conocimiento en YAML y huecos (GCQ-04) · ⏳ 12 (GCQ-05), 13 (GCQ-06).
 
 1. App PySide6 con tema oscuro, sidebar y navegación.
 2. Detección de `cwd` y del tipo de proyecto (Java · Spring Boot · Maven/Gradle).
