@@ -211,6 +211,14 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     lo esperado. Eso permite errores dentro de los métodos: llamadas a repositorios de Spring Data
     cambiadas por la contraria (`save`→`delete`, `findById`→`deleteById`…), solo cuando el receptor
     es un campo o parámetro cuyo tipo es un repositorio del proyecto.
+31. **Corrige el código (GCQ-18).** Reutiliza los errores de "Encuentra el error" (con claves
+    `fix:` propias) en un editor editable. La evaluación es local y con tree-sitter: la versión
+    del estudiante se coloca en su archivo, en memoria, para comprobar la sintaxis en contexto (solo
+    cuentan los errores nuevos, no los de un fragmento suelto o un archivo que ya fallaba), y luego
+    se compara con el original token a token, sin espacios ni comentarios. Resultados: correcto;
+    *casi* (`PARTIAL`: arregló la línea pero cambió otras cosas); error de sintaxis (con su línea
+    real); o el error sigue. Comparar con el código original es a propósito: es el código real del
+    estudiante, no una solución inventada.
 
 ### Seguridad sobre el repositorio
 
@@ -263,7 +271,7 @@ Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo
 
 ### v0.3 — “Juego de verdad”
 
-Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores dentro de métodos (GCQ-17) · ⏳ Corrige el código · ⏳ Comparaciones.
+Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores dentro de métodos (GCQ-17) · ✅ Corrige el código (GCQ-18) · ⏳ Comparaciones.
 - Modos **Encuentra el error** (mutaciones y evaluación locales) y **Corrige el código**.
 - Modo **Comparaciones** basado en tecnologías detectadas.
 
@@ -361,7 +369,7 @@ Cambios respecto a la propuesta original y por qué:
 | Clase | Responsabilidad |
 |-------|-----------------|
 | `BaseGameMode` (ABC) | `id`, `title`, `requires_ai`, `next_exercise()`, `evaluate(answer) -> Evaluation`. |
-| `MultipleChoiceMode`, `TrueFalseMode`, `ExplainCodeMode`, `FindErrorMode` | Implementaciones concretas. |
+| `MultipleChoiceMode`, `TrueFalseMode`, `ExplainCodeMode`, `FindErrorMode`, `FixCodeMode` | Implementaciones concretas. `FixCodeMode` evalúa con `analysis/java/syntax.py` (tokens y errores de sintaxis). |
 | `Evaluation` | Resultado: correcto/parcial/incorrecto, feedback, conceptos afectados, si usó IA. |
 | `GameSession` | Una partida: modo, ejercicios y resultados. Emite eventos para persistir. |
 

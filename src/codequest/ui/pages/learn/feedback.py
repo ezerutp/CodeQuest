@@ -34,6 +34,7 @@ _TITLES = {
     Outcome.CORRECT: ("¡Correcto!", "success", "correct"),
     Outcome.INCORRECT: ("No exactamente. La respuesta correcta es la {letter}.", "danger", "incorrect"),
     Outcome.SKIPPED: ("La respuesta correcta es la {letter}.", "info", "explain"),
+    Outcome.PARTIAL: ("Casi.", "warning", "warning"),
 }
 
 
@@ -133,7 +134,9 @@ class FeedbackPanel(Card):
         self._mutated.setText(mutated.strip())
         self._change.show()
 
-    def show_evaluation(self, evaluation: Evaluation, correct_letter: str = "") -> None:
+    def show_evaluation(self, evaluation: Evaluation, correct_letter: str = "",
+                        custom_title: str | None = None) -> None:
+        """`custom_title` sustituye al título por defecto (modos con un resultado más detallado)."""
         concept = evaluation.question.concept
         self._concept = concept
         self._class_name = evaluation.question.class_name
@@ -148,16 +151,18 @@ class FeedbackPanel(Card):
             title = _STATEMENT_TITLES[evaluation.outcome]
             correct_letter = "verdadera" if question.correct_index == 0 else "falsa"
         palette = current_palette()
-        color = {"success": palette.success, "danger": palette.danger, "info": palette.syntax_annotation}[tone]
+        color = {"success": palette.success, "danger": palette.danger, "warning": palette.warning,
+                 "info": palette.syntax_annotation}[tone]
         self._icon.setPixmap(icon(icon_name, color).pixmap(22, 22))
         mutation = question.mutation
         if mutation is not None:
-            title = _ERROR_TITLES[evaluation.outcome]
+            title = _ERROR_TITLES.get(evaluation.outcome, title)
             self._change_explanation.setText(inline_code_html(mutation.explanation))
         self._change.hide()
-        self._title.setText(title.format(letter=correct_letter, line=mutation.line if mutation else ""))
+        self._title.setText(custom_title or title.format(letter=correct_letter, line=mutation.line if mutation else ""))
         set_style_property(self._title, "tone", tone)
-        set_style_property(self, "variant", "success" if tone == "success" else "danger" if tone == "danger" else None)
+        # Solo el borde cambia de color; "warning" es la variante de los avisos, con fondo propio.
+        set_style_property(self, "variant", {"success": "success", "danger": "danger", "warning": "partial"}.get(tone))
 
         self._concept_title.setText(inline_code_html(f"`{concept.title}`"))
         explanation = concept.explanation

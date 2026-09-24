@@ -6,10 +6,11 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 from codequest.core.ai.explanation_grader import ExplanationFeedback
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.games.base import GameSession
-from codequest.core.games.catalog import EXPLAIN_CODE, FIND_ERROR
+from codequest.core.games.catalog import EXPLAIN_CODE, FIND_ERROR, FIX_CODE
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.learn.explain_view import ExplainCodeView
 from codequest.ui.pages.learn.find_error_view import FindErrorView
+from codequest.ui.pages.learn.fix_code_view import FixCodeView
 from codequest.ui.pages.learn.game_view import GameView, SnippetLoader
 from codequest.ui.pages.learn.summary_view import SummaryView
 from codequest.ui.widgets import Card, IconText, ModeGrid, heading, muted, section_title
@@ -52,13 +53,17 @@ class LearnPage(Page):
         self._game.content_changed.connect(self.content_changed)
         self.layout_.addWidget(self._game)
 
+        # Modos que muestran código y dan feedback con FeedbackPanel: misma conexión para todos.
         self._find_error = FindErrorView(load_snippet)
-        self._find_error.finished.connect(self._show_summary)
-        self._find_error.open_class.connect(self.open_class)
-        self._find_error.explain_requested.connect(self.explain_requested)
-        self._find_error.answered.connect(self.answered)
-        self._find_error.content_changed.connect(self.content_changed)
-        self.layout_.addWidget(self._find_error)
+        self._fix_code = FixCodeView(load_snippet)
+        self._code_views = (self._game, self._find_error, self._fix_code)
+        for view in self._code_views[1:]:
+            view.finished.connect(self._show_summary)
+            view.open_class.connect(self.open_class)
+            view.explain_requested.connect(self.explain_requested)
+            view.answered.connect(self.answered)
+            view.content_changed.connect(self.content_changed)
+            self.layout_.addWidget(view)
 
         self._explain = ExplainCodeView(load_snippet)
         self._explain.finished.connect(self._show_summary)
@@ -71,25 +76,25 @@ class LearnPage(Page):
         self._summary.play_again.connect(self.play_again)
         self._summary.go_home.connect(self.go_home)
         self.layout_.addWidget(self._summary)
-        self._views = (self._select, self._game, self._find_error, self._explain, self._summary)
+        self._views = (self._select, *self._code_views, self._explain, self._summary)
         self._show(self._select)
 
     # "Explícamelo mejor": cada vista descarta las respuestas que no son de su pregunta actual.
 
     def set_ai_available(self, available: bool, provider_name: str | None) -> None:
-        for view in (self._game, self._find_error):
+        for view in self._code_views:
             view.set_ai_available(available, provider_name)
 
     def show_ai_loading(self, question_key: str) -> None:
-        for view in (self._game, self._find_error):
+        for view in self._code_views:
             view.show_ai_loading(question_key)
 
     def show_ai_answer(self, question_key: str, text: str) -> None:
-        for view in (self._game, self._find_error):
+        for view in self._code_views:
             view.show_ai_answer(question_key, text)
 
     def show_ai_error(self, question_key: str, message: str) -> None:
-        for view in (self._game, self._find_error):
+        for view in self._code_views:
             view.show_ai_error(question_key, message)
 
     def set_model(self, model: ProjectModel | None) -> None:
@@ -102,7 +107,7 @@ class LearnPage(Page):
         self._show(self._select)
 
     def start(self, session: GameSession, scope_label: str | None) -> None:
-        views = {EXPLAIN_CODE: self._explain, FIND_ERROR: self._find_error}
+        views = {EXPLAIN_CODE: self._explain, FIND_ERROR: self._find_error, FIX_CODE: self._fix_code}
         view = views.get(session.mode.mode_id, self._game)
         view.start(session, scope_label)
         self._show(view)

@@ -35,8 +35,10 @@ class CodeExplainer:
             mutation = question.mutation
             lines[1] = (f"Concepto: {concept.title}. En el ejercicio se cambió `{mutation.original}` por "
                         f"`{mutation.replacement}` en la línea {mutation.line}: {mutation.explanation}")
-            if evaluation.outcome is Outcome.INCORRECT:
+            if evaluation.outcome is Outcome.INCORRECT and isinstance(evaluation.answer, int):
                 lines.append(f"El estudiante señaló la línea {evaluation.answer}, que no era la cambiada.")
+            elif evaluation.outcome in (Outcome.INCORRECT, Outcome.PARTIAL):
+                lines.append("El estudiante intentó corregirlo, pero su versión no quedó igual que el original.")
             elif evaluation.outcome is Outcome.SKIPPED:
                 lines.append("El estudiante indicó que no encontraba el error.")
         elif evaluation.outcome is Outcome.INCORRECT and evaluation.answer is not None:
