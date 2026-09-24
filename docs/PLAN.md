@@ -19,7 +19,7 @@
  ProjectScanner ──► [SourceFile]          recorre el árbol, ignora target/, .git/, ...
      │
      ▼
- JavaAnalyzer ────► [JavaClass]           parsing simple (regex), sustituible
+ JavaAnalyzer ────► [JavaClass]           árbol sintáctico (tree-sitter), sustituible
      │
      ▼
  SpringBootAnalyzer ► ProjectModel        asigna roles: ENTITY, SERVICE, CONTROLLER...
@@ -64,8 +64,8 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
 ### Componentes principales
 
 - **Detección y escaneo**: `ProjectDetector`, `ProjectScanner`.
-- **Análisis**: `SourceParser` (interfaz) → `RegexJavaParser` (MVP) → futuro
-  `TreeSitterJavaParser`. `FrameworkAnalyzer` (interfaz) → `SpringBootAnalyzer`.
+- **Análisis**: `SourceParser` (interfaz) → `TreeSitterJavaParser`.
+  `FrameworkAnalyzer` (interfaz) → `SpringBootAnalyzer`.
   Un `AnalyzerRegistry` elige los analizadores que aplican a cada proyecto.
 - **Conocimiento**: `KnowledgeBase` con conceptos (`@Transactional`, `@RestController`,
   `JpaRepository`…), cada uno con explicación, analogía, distractores y preguntas plantilla.
@@ -81,7 +81,7 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
 
 | Riesgo | Mitigación |
 |--------|-----------|
-| **Parsing con regex es frágil** (genéricos anidados, anotaciones multilínea con paréntesis, comentarios y strings que contienen `{`, records, clases internas). | Parser detrás de la interfaz `SourceParser`; pre-procesar eliminando comentarios/strings; contar llaves para delimitar métodos; tests con fixtures Java reales; migrar a `tree-sitter-java` en v1.0. |
+| **El código Java real es variado** (genéricos anidados, anotaciones multilínea, comentarios y strings que contienen `{`, records, clases internas y anónimas, código a medio escribir). | Parser `tree-sitter-java` detrás de la interfaz `SourceParser`: árbol completo y tolerante a errores; tests con fixtures Java reales. |
 | **Lombok** (`@Data`, `@RequiredArgsConstructor`) oculta getters/constructores. | Tratar Lombok como conceptos de la KB; no asumir que un método “no existe”. |
 | **Calidad de preguntas por reglas**: repetitivas o triviales. | Plantillas variadas, distractores por concepto, anti-repetición usando el historial; IA para enriquecer. |
 | **Coste, latencia y privacidad de la IA**. | Envío de fragmentos mínimos (`ContextBuilder`), indicador visible “✨ usará IA”, llamadas en worker, caché de explicaciones por concepto, límites de tokens. |
@@ -119,11 +119,13 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
    colorean con la paleta. Las maquetas de este documento usan emojis solo como ilustración.
 9. **Sin IA no hay bloqueo**: toda funcionalidad tiene un camino local; la IA solo
    mejora.
-10. **Parser por texto enmascarado (GCQ-01).** Comentarios y strings se sustituyen por
-    espacios conservando offsets; después se recorre el código contando llaves/paréntesis
-    y las regex solo se aplican a cabeceras cortas. Evita que `"{"` o un `class` en un
-    comentario rompan la estructura, y las líneas siguen siendo exactas para los snippets.
-    Coste medido: ~100 µs por método (un proyecto de 60 clases, ~50 ms).
+10. **Parser con tree-sitter (GCQ-17).** `tree-sitter-java` construye el árbol sintáctico
+    completo (también dentro de los métodos) y tolera código roto: marca el trozo como ERROR y
+    sigue. `TreeSitterJavaParser` solo lo traduce a los modelos inmutables de `models.py`; el
+    resto de CodeQuest no conoce tree-sitter. Además de líneas guarda posiciones exactas
+    (`SourceSpan`, columnas en caracteres aunque tree-sitter cuente bytes UTF-8) de cada
+    anotación y las llamadas de cada cuerpo (`MethodCall`), base para los modos que editan o
+    comparan código. Rápido: ~10 ms para 60 archivos. Wheels nativos para Linux, macOS y Windows.
 11. **Los roles viven en `ProjectModel.roles`, no en `JavaClass`.** Los modelos Java son
     inmutables (seguros entre hilos) y el parser no depende de Spring.
 12. **Interfaces sin anotaciones no se clasifican por paquete**: `UserService` +
@@ -204,6 +206,11 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     (`@RequestBody("id")`). La línea no se resalta: encontrarla es el ejercicio. El estudiante pulsa la
     línea y la evaluación es local (número de línea); la IA solo es el "Explícamelo mejor" opcional.
     Si el código cambió desde el análisis y la mutación ya no encaja, solo se ofrece "No sé".
+30. **Mutaciones por posición (GCQ-17).** Con tree-sitter una `CodeMutation` sustituye un tramo
+    exacto (línea y columnas) en vez de buscar texto, y comprueba que el tramo sigue empezando por
+    lo esperado. Eso permite errores dentro de los métodos: llamadas a repositorios de Spring Data
+    cambiadas por la contraria (`save`→`delete`, `findById`→`deleteById`…), solo cuando el receptor
+    es un campo o parámetro cuyo tipo es un repositorio del proyecto.
 
 ### Seguridad sobre el repositorio
 
@@ -218,7 +225,7 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
 
 ### Qué dejamos para después
 
-Parser real (tree-sitter), modos FindError/FixCode/Comparison/WhatIf,
+Modo WhatIf,
 multi-proveedor IA, YouTube, tema claro, i18n, empaquetado
 (PyInstaller/pipx), soporte de otros lenguajes (Python, TypeScript/NestJS, Kotlin).
 
@@ -256,12 +263,12 @@ Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo
 
 ### v0.3 — “Juego de verdad”
 
-Estado: ✅ modo Encuentra el error (GCQ-16) · ⏳ Corrige el código · ⏳ Comparaciones.
+Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores dentro de métodos (GCQ-17) · ⏳ Corrige el código · ⏳ Comparaciones.
 - Modos **Encuentra el error** (mutaciones y evaluación locales) y **Corrige el código**.
 - Modo **Comparaciones** basado en tecnologías detectadas.
 
 ### v1.0 — “Plataforma”
-- Parser basado en `tree-sitter` y soporte multi-módulo robusto.
+- Soporte multi-módulo robusto.
 - Modo **¿Qué pasaría si…?**.
 - Proveedores OpenAI / Gemini / modelo local.
 - Plugins de lenguaje (Kotlin, Python, TypeScript) usando el `AnalyzerRegistry`.
@@ -284,7 +291,7 @@ CodeQuest/
 │   ├── core/                    # Núcleo SIN Qt
 │   │   ├── project/             #   detector, scanner, modelos de proyecto/archivos
 │   │   ├── analysis/            #   parsers de lenguaje + analizadores de framework
-│   │   │   ├── java/            #     modelos Java, RegexJavaParser
+│   │   │   ├── java/            #     modelos Java, TreeSitterJavaParser
 │   │   │   └── spring/          #     SpringBootAnalyzer, roles de componentes
 │   │   ├── knowledge/           #   KnowledgeBase y conceptos
 │   │   ├── questions/           #   Question, QuestionGenerator, reglas
@@ -332,7 +339,7 @@ Cambios respecto a la propuesta original y por qué:
 | Clase | Responsabilidad |
 |-------|-----------------|
 | `SourceParser` (ABC) | `parse(SourceFile) -> list[JavaClass]`. Interfaz para sustituir el parser. |
-| `RegexJavaParser` | Implementación MVP: package, imports, clases, anotaciones, campos, métodos, rangos de líneas. |
+| `TreeSitterJavaParser` | Sobre `tree-sitter-java`: package, imports, clases, anotaciones, campos, métodos, llamadas, líneas y posiciones exactas. |
 | `JavaClass` / `JavaMethod` / `JavaField` / `JavaAnnotation` | Modelos del código. Guardan nombre, tipo, anotaciones, modificadores y **rango de líneas** (no el código). |
 | `CodeSnippet` | Referencia a un fragmento: archivo + líneas + texto extraído al momento de mostrar. |
 | `ComponentRole` (enum) | ENTITY, CONTROLLER, SERVICE, REPOSITORY, DTO, CONFIGURATION, ENUM, EXCEPTION, UTILITY, OTHER. |

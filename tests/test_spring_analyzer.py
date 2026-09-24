@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from codequest.core.analysis.java.conventions import JavaConventionsAnalyzer
-from codequest.core.analysis.java.parser import RegexJavaParser
+from codequest.core.analysis.java.parser import TreeSitterJavaParser
 from codequest.core.analysis.roles import ComponentRole as R
 from codequest.core.analysis.spring.analyzer import SpringBootAnalyzer
 from codequest.core.project.scanner import ProjectScanner
@@ -31,7 +31,7 @@ EXPECTED_SPRING_ROLES = {
 
 
 def _classes(project: Path):
-    parser = RegexJavaParser()
+    parser = TreeSitterJavaParser()
     return [c for f in ProjectScanner().scan(project).files if parser.supports(f)
             for c in parser.parse(f, f.read_text())]
 

@@ -1,4 +1,4 @@
-"""Modelos del código Java. Guardan estructura y rangos de líneas, no el código."""
+"""Modelos del código Java. Guardan estructura y posiciones, no el código."""
 
 import re
 from dataclasses import dataclass
@@ -16,10 +16,26 @@ class TypeKind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class SourceSpan:
+    """Tramo del archivo: líneas reales (desde 1) y columnas en caracteres (desde 0, fin exclusivo)."""
+
+    line: int
+    column: int
+    end_line: int
+    end_column: int
+
+    @property
+    def is_single_line(self) -> bool:
+        return self.line == self.end_line
+
+
+@dataclass(frozen=True, slots=True)
 class JavaAnnotation:
     name: str  # nombre simple, sin "@": "GetMapping"
     arguments: str | None  # texto original entre paréntesis: '"/{id}"'
     line: int
+    span: SourceSpan | None = None  # toda la anotación, con sus argumentos
+    name_span: SourceSpan | None = None  # solo "@GetMapping"
 
     @property
     def display(self) -> str:
@@ -48,6 +64,16 @@ class JavaField:
 
 
 @dataclass(frozen=True, slots=True)
+class MethodCall:
+    """Una llamada dentro del cuerpo de un método: `userRepository.save(user)`."""
+
+    name: str  # "save"
+    receiver: str | None  # texto del objeto: "userRepository", "this.repo"; None si es una llamada directa
+    arguments: str  # texto normalizado entre paréntesis: "user"
+    name_span: SourceSpan  # posición de "save"
+
+
+@dataclass(frozen=True, slots=True)
 class JavaMethod:
     name: str
     return_type: str | None  # None en constructores
@@ -58,6 +84,7 @@ class JavaMethod:
     start_line: int  # incluye las anotaciones
     end_line: int
     has_body: bool = True
+    calls: tuple[MethodCall, ...] = ()  # en orden de aparición
 
     @property
     def is_constructor(self) -> bool:

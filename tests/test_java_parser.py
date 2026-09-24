@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from codequest.core.analysis.java.models import JavaClass, TypeKind
-from codequest.core.analysis.java.parser import RegexJavaParser
+from codequest.core.analysis.java.parser import TreeSitterJavaParser, normalize_type
 from codequest.core.project.models import SourceFile
 
 BASE = "src/main/java/com/example/shop"
@@ -12,7 +12,7 @@ BASE = "src/main/java/com/example/shop"
 def parse(project: Path, relative: str) -> list[JavaClass]:
     path = project / relative
     file = SourceFile(path=path, relative_path=relative, size=path.stat().st_size)
-    return RegexJavaParser().parse(file, file.read_text())
+    return TreeSitterJavaParser().parse(file, file.read_text())
 
 
 def parse_one(project: Path, relative: str) -> JavaClass:
@@ -23,7 +23,7 @@ def parse_one(project: Path, relative: str) -> JavaClass:
 
 def parse_text(text: str, relative: str = "src/main/java/X.java") -> list[JavaClass]:
     file = SourceFile(path=Path(relative), relative_path=relative, size=len(text))
-    return RegexJavaParser().parse(file, text)
+    return TreeSitterJavaParser().parse(file, text)
 
 
 def test_entity_header_annotations_and_fields(shop_project: Path) -> None:
@@ -174,3 +174,32 @@ def test_multiple_top_level_types_and_multi_declarators() -> None:
 ])
 def test_malformed_input_does_not_raise(text: str) -> None:
     parse_text(text)
+
+
+def test_normalize_type() -> None:
+    assert normalize_type("Map< String ,\n  List<X> >") == "Map<String, List<X>>"
+    assert normalize_type("int [ ]") == "int[]"
+
+
+def test_annotation_spans_use_character_columns() -> None:
+    (cls,) = parse_text('class A {\n    /* año */ @GetMapping("/{id}") void m() {}\n}')
+    ann = cls.methods[0].annotations[0]
+    line = '    /* año */ @GetMapping("/{id}") void m() {}'
+    assert ann.span.line == 2 and line[ann.span.column:ann.span.end_column] == '@GetMapping("/{id}")'
+    assert line[ann.name_span.column:ann.name_span.end_column] == "@GetMapping"
+
+
+def test_method_calls_in_order_without_anonymous_classes(shop_project: Path) -> None:
+    service = parse_one(shop_project, f"{BASE}/service/UserServiceImpl.java")
+    find_by_id = next(m for m in service.methods if m.name == "findById")
+    calls = [(c.receiver, c.name, c.arguments) for c in find_by_id.calls]
+    assert calls[:2] == [("userRepository.findById(id)", "orElseThrow", "() -> new UserNotFoundException(id)"),
+                         ("userRepository", "findById", "id")]
+    assert calls[0][1] == "orElseThrow"  # la llamada externa aparece antes que su receptor
+    span = find_by_id.calls[1].name_span
+    source = (shop_project / f"{BASE}/service/UserServiceImpl.java").read_text().splitlines()[span.line - 1]
+    assert source[span.column:span.end_column] == "findById"
+
+    config, _ = parse(shop_project, f"{BASE}/config/SecurityConfig.java")
+    encoder = config.methods[0]
+    assert all(c.name != "encode" for c in encoder.calls)  # está dentro de una clase anónima

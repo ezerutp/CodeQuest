@@ -26,7 +26,8 @@ def qapp() -> QApplication:
 
 def _session(code_line: int = 20) -> GameSession:
     concept = KnowledgeBase.default().for_annotation("GetMapping")
-    mutation = CodeMutation(line=code_line, find="@GetMapping", replace="@PostMapping", explanation="`get()` consulta.")
+    mutation = CodeMutation(line=code_line, column=0, end_column=11, original="@GetMapping",
+                            replacement="@PostMapping", explanation="`get()` consulta.")
     questions = [Question(key=f"q{i}", prompt="¿Dónde está el error?", concept=concept, class_name="C",
                           snippet=SnippetRef("A.java", 20, 23), mutation=mutation) for i in range(2)]
     return GameSession(FindErrorMode(), questions)

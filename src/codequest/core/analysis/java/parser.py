@@ -1,14 +1,17 @@
-"""Parser Java ligero: estructura de tipos, anotaciones, campos y métodos.
+"""Parser Java basado en tree-sitter: estructura de tipos, anotaciones, campos, métodos y llamadas.
 
-No es un compilador. Recorre el texto enmascarado (sin comentarios ni strings)
-contando llaves y paréntesis, y aplica expresiones regulares solo a cabeceras
-cortas ("public class X extends Y", "public User save(User u)"). Los cuerpos de
-los métodos se saltan. Se puede sustituir por otro SourceParser (p. ej. tree-sitter).
+tree-sitter construye el árbol sintáctico completo y tolera código a medio escribir (marca los
+trozos rotos como ERROR y sigue). Aquí solo se traduce ese árbol a los modelos inmutables de
+`models.py`: el resto de CodeQuest no conoce tree-sitter.
 """
 
 import logging
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
+
+import tree_sitter_java
+from tree_sitter import Language, Node, Parser
 
 from codequest.core.analysis.base import SourceParser
 from codequest.core.analysis.java.models import (
@@ -17,54 +20,49 @@ from codequest.core.analysis.java.models import (
     JavaField,
     JavaMethod,
     JavaParameter,
+    MethodCall,
+    SourceSpan,
     TypeKind,
-)
-from codequest.core.analysis.java.source_text import (
-    LineIndex,
-    find_top_level,
-    mask_source,
-    matching,
-    normalize_type,
-    split_top_level,
 )
 from codequest.core.project.models import SourceFile
 
 log = logging.getLogger(__name__)
 
-MODIFIERS = frozenset({
-    "public", "protected", "private", "abstract", "static", "final", "sealed", "non-sealed",
-    "strictfp", "default", "synchronized", "native", "transient", "volatile",
-})
+JAVA = Language(tree_sitter_java.language())
 
-_PACKAGE = re.compile(r"^\s*package\s+([\w.]+)\s*;", re.MULTILINE)
-_IMPORT = re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+(?:\.\*)?)\s*;", re.MULTILINE)
-_TYPE_DECL = re.compile(
-    r"((?:(?:public|protected|private|abstract|static|final|sealed|non-sealed|strictfp)\s+)*)"
-    r"(class|interface|enum|record|@interface)\s+(\w+)"
-)
-_ANNOTATION = re.compile(r"\s*@\s*([\w.]+)\s*")  # "@ Foo" o "@org.x.Foo" + espacios
-_NON_SPACE = re.compile(r"\S")
-_TRAILING_NAME = re.compile(r"(\w+)\s*((?:\[\s*\]\s*)*)$")
-_EXTENDS = re.compile(r"\bextends\s+(.+?)(?=\bimplements\b|\bpermits\b|$)", re.DOTALL)
-_IMPLEMENTS = re.compile(r"\bimplements\s+(.+?)(?=\bpermits\b|$)", re.DOTALL)
-_THROWS = re.compile(r"\bthrows\s+(.+?)(?=\bdefault\b|$)", re.DOTALL)
+_TYPE_KINDS = {
+    "class_declaration": TypeKind.CLASS,
+    "interface_declaration": TypeKind.INTERFACE,
+    "enum_declaration": TypeKind.ENUM,
+    "record_declaration": TypeKind.RECORD,
+    "annotation_type_declaration": TypeKind.ANNOTATION,
+}
+_ANNOTATIONS = frozenset({"annotation", "marker_annotation"})
+_SPACES = re.compile(r"\s+")
+_SPACE_AROUND_BRACKETS = re.compile(r"\s*([<>\[\]])\s*")
+_SPACE_AROUND_COMMA = re.compile(r"\s*,\s*")
 
 
-def _strip_modifiers(text: str) -> tuple[tuple[str, ...], str]:
-    """Separa los modificadores iniciales ("private static final") del resto."""
-    modifiers: list[str] = []
-    while (word := re.match(r"\s*([\w-]+)\s+", text)) and word.group(1) in MODIFIERS:
-        modifiers.append(word.group(1))
-        text = text[word.end():]
-    return tuple(modifiers), text
+def normalize_type(text: str) -> str:
+    """'Map< String ,  List<X> >' -> 'Map<String, List<X>>'."""
+    text = _SPACES.sub(" ", text).strip()
+    text = _SPACE_AROUND_BRACKETS.sub(r"\1", text)
+    return _SPACE_AROUND_COMMA.sub(", ", text)
 
 
-class RegexJavaParser(SourceParser):
+class TreeSitterJavaParser(SourceParser):
+    def __init__(self) -> None:
+        self._parser = Parser(JAVA)
+
     def supports(self, file: SourceFile) -> bool:
         return file.extension == ".java"
 
     def parse(self, file: SourceFile, text: str) -> list[JavaClass]:
-        return _FileParser(file, text).parse()
+        source = text.encode("utf-8")
+        tree = self._parser.parse(source)
+        if tree.root_node.has_error:
+            log.debug("%s tiene errores de sintaxis; se analiza lo reconocible", file.relative_path)
+        return _FileReader(file, source, tree.root_node).read()
 
 
 @dataclass
@@ -74,11 +72,7 @@ class _TypeBuilder:
     name: str
     kind: TypeKind
     enclosing: str | None
-    modifiers: tuple[str, ...]
-    annotations: tuple[JavaAnnotation, ...]
-    superclass: str | None
-    interfaces: tuple[str, ...]
-    start_line: int
+    node: Node
     fields: list[JavaField] = field(default_factory=list)
     methods: list[JavaMethod] = field(default_factory=list)
     enum_constants: list[str] = field(default_factory=list)
@@ -88,304 +82,232 @@ class _TypeBuilder:
         return f"{self.enclosing}.{self.name}" if self.enclosing else self.name
 
 
-class _FileParser:
-    def __init__(self, file: SourceFile, text: str) -> None:
+class _FileReader:
+    def __init__(self, file: SourceFile, source: bytes, root: Node) -> None:
         self._file = file
-        self._text = text
-        self._m = mask_source(text)
-        self._lines = LineIndex(text)
-        package = _PACKAGE.search(self._m)
-        self._package = package.group(1) if package else ""
-        self._imports = tuple(_IMPORT.findall(self._m))
+        self._source = source
+        self._root = root
+        self._line_starts = [0] + [i + 1 for i, b in enumerate(source) if b == 0x0A]
+        self._package = ""
+        self._imports: list[str] = []
         self._classes: list[JavaClass] = []
 
-    def parse(self) -> list[JavaClass]:
-        self._parse_block(0, len(self._m), owner=None)
+    def read(self) -> list[JavaClass]:
+        for node in self._root.named_children:
+            if node.type == "package_declaration":
+                self._package = self._text(_first(node, "scoped_identifier", "identifier"))
+            elif node.type == "import_declaration":
+                self._add_import(node)
+            elif node.type in _TYPE_KINDS:
+                self._read_type(node, enclosing=None)
         return self._classes
 
-    # --- recorrido de bloques --------------------------------------------------
-
-    def _parse_block(self, start: int, end: int, owner: _TypeBuilder | None) -> None:
-        """Recorre las declaraciones de un bloque (archivo o cuerpo de un tipo)."""
-        m = self._m
-        header_start = start
-        paren = 0
-        i = start
-        while i < end:
-            c = m[i]
-            if c == "(":
-                paren += 1
-            elif c == ")":
-                paren = max(0, paren - 1)
-            elif paren == 0 and c == ";":
-                self._handle_statement(header_start, i, owner)
-                header_start = i + 1
-            elif paren == 0 and c == "{":
-                i = self._handle_block(header_start, i, owner)
-                header_start = i
-                continue
-            elif paren == 0 and c == "}":
-                header_start = i + 1
-            i += 1
-
-    def _handle_block(self, header_start: int, brace: int, owner: _TypeBuilder | None) -> int:
-        """Procesa una cabecera seguida de '{'. Devuelve dónde seguir recorriendo."""
-        close = matching(self._m, brace)
-        annotations, rest = self._parse_annotations(header_start, brace)
-        rest_text = self._m[rest:brace]
-
-        if decl := _TYPE_DECL.match(rest_text.lstrip()):
-            offset = rest + (len(rest_text) - len(rest_text.lstrip()))
-            self._parse_type(decl, offset, brace, close, annotations, header_start, owner)
-            return close + 1
-        if owner is None:
-            return close + 1
-
-        stripped = rest_text.strip()
-        if stripped in ("", "static"):  # bloque inicializador
-            return close + 1
-        if self._has_initializer(rest, brace):
-            # Inicializador con llaves: array, clase anónima o lambda. Sigue hasta el ';'.
-            semi = self._statement_end(close + 1)
-            self._add_fields(owner, header_start, rest, semi, annotations)
-            return semi + 1
-        paren = find_top_level(self._m, rest, brace, "(")
-        if paren != -1:
-            self._add_method(owner, header_start, rest, paren, brace, close, annotations, has_body=True)
-        return close + 1
-
-    def _handle_statement(self, header_start: int, semi: int, owner: _TypeBuilder | None) -> None:
-        if owner is None:
-            return  # package / import
-        annotations, rest = self._parse_annotations(header_start, semi)
-        if not self._m[rest:semi].strip():
-            return
-        if self._is_field_header(rest, semi):
-            self._add_fields(owner, header_start, rest, semi, annotations)
-            return
-        paren = find_top_level(self._m, rest, semi, "(")
-        if paren != -1:
-            self._add_method(owner, header_start, rest, paren, semi, semi, annotations, has_body=False)
-
-    def _statement_end(self, start: int) -> int:
-        """Siguiente ';' de nivel superior a partir de `start`, saltando bloques."""
-        m = self._m
-        paren = 0
-        i = start
-        while i < len(m):
-            c = m[i]
-            if c == "(":
-                paren += 1
-            elif c == ")":
-                paren = max(0, paren - 1)
-            elif c == "{":
-                i = matching(m, i)
-            elif c == ";" and paren == 0:
-                return i
-            i += 1
-        return len(m) - 1
+    def _add_import(self, node: Node) -> None:
+        name = _first(node, "scoped_identifier", "identifier")
+        if name is not None:
+            suffix = ".*" if any(c.type == "asterisk" for c in node.children) else ""
+            self._imports.append(self._text(name) + suffix)
 
     # --- tipos --------------------------------------------------------------------
 
-    def _parse_type(self, decl: re.Match[str], offset: int, brace: int, close: int,
-                    annotations: tuple[JavaAnnotation, ...], header_start: int,
-                    owner: _TypeBuilder | None) -> None:
-        modifiers, kind_text, name = decl.group(1).split(), decl.group(2), decl.group(3)
-        kind = TypeKind(kind_text)
-        tail_start = offset + decl.end()
-        tail = self._m[tail_start:brace]
+    def _read_type(self, node: Node, enclosing: str | None) -> None:
+        name = node.child_by_field_name("name")
+        if name is None:
+            return
+        builder = _TypeBuilder(self._text(name), _TYPE_KINDS[node.type], enclosing, node)
+        position = len(self._classes)  # el tipo va antes que sus tipos anidados
+        if builder.kind is TypeKind.RECORD and (components := node.child_by_field_name("parameters")):
+            builder.fields.extend(self._record_component(p) for p in components.named_children
+                                  if p.type == "formal_parameter")
+        if body := node.child_by_field_name("body"):
+            self._read_body(body, builder)
+        self._classes.insert(position, self._build(builder))
 
-        # Parámetros genéricos (<T extends X>) y componentes de record ((int x, int y)).
-        stripped = tail.lstrip()
-        skip = len(tail) - len(stripped)
-        if stripped.startswith("<"):
-            skip = matching(self._m, tail_start + skip) - tail_start + 1
-        components: list[JavaField] = []
-        if kind is TypeKind.RECORD:
-            paren = self._m.find("(", tail_start + skip, brace)
-            if paren != -1:
-                paren_close = matching(self._m, paren)
-                components = [self._record_component(s, e) for s, e in
-                              split_top_level(self._m, paren + 1, paren_close)]
-                skip = paren_close - tail_start + 1
-        clauses = self._m[tail_start + skip:brace]
+    def _read_body(self, body: Node, owner: _TypeBuilder) -> None:
+        for member in body.named_children:
+            kind = member.type
+            if kind in _TYPE_KINDS:
+                self._read_type(member, owner.path)
+            elif kind in ("field_declaration", "constant_declaration"):
+                self._add_fields(member, owner)
+            elif kind in ("method_declaration", "annotation_type_element_declaration"):
+                self._add_method(member, owner, is_constructor=False)
+            elif kind == "constructor_declaration":
+                self._add_method(member, owner, is_constructor=True)
+            elif kind == "enum_constant":
+                if name := member.child_by_field_name("name"):
+                    owner.enum_constants.append(self._text(name))
+            elif kind == "enum_body_declarations":
+                self._read_body(member, owner)
 
-        extends = self._type_list(_EXTENDS, clauses)
-        implements = self._type_list(_IMPLEMENTS, clauses)
-        if kind is TypeKind.INTERFACE:
-            superclass, interfaces = None, extends
+    def _build(self, b: _TypeBuilder) -> JavaClass:
+        node = b.node
+        modifiers, annotations = self._modifiers(node)
+        superclass: str | None = None
+        interfaces: tuple[str, ...] = ()
+        if b.kind is TypeKind.INTERFACE:
+            interfaces = self._type_list(_first(node, "extends_interfaces"))
         else:
-            superclass, interfaces = (extends[0] if extends else None), implements
-
-        builder = _TypeBuilder(
-            name=name,
-            kind=kind,
-            enclosing=owner.path if owner else None,
-            modifiers=tuple(modifiers),
-            annotations=annotations,
-            superclass=superclass,
-            interfaces=interfaces,
-            start_line=self._line(header_start),
-            fields=components,
-        )
-        position = len(self._classes)
-        body_start = brace + 1
-        if kind is TypeKind.ENUM:
-            body_start = self._parse_enum_constants(builder, body_start, close)
-        self._parse_block(body_start, close, owner=builder)
-        self._classes.insert(position, self._build(builder, close))
-
-    def _parse_enum_constants(self, builder: _TypeBuilder, start: int, close: int) -> int:
-        semi = find_top_level(self._m, start, close, ";")
-        end = close if semi == -1 else semi
-        for s, e in split_top_level(self._m, start, end):
-            _, rest = self._parse_annotations(s, e)
-            if name := re.match(r"\s*(\w+)", self._m[rest:e]):
-                builder.enum_constants.append(name.group(1))
-        return end + 1 if semi != -1 else close
-
-    def _build(self, b: _TypeBuilder, close: int) -> JavaClass:
+            if (extends := node.child_by_field_name("superclass")) and extends.named_children:
+                superclass = self._type(extends.named_children[0])
+            interfaces = self._type_list(node.child_by_field_name("interfaces"))
         return JavaClass(
             name=b.name,
             package=self._package,
             kind=b.kind,
             file=self._file.relative_path,
             is_test=self._file.is_test,
-            start_line=b.start_line,
-            end_line=self._line(close),
-            modifiers=b.modifiers,
-            annotations=b.annotations,
-            imports=self._imports,
-            superclass=b.superclass,
-            interfaces=b.interfaces,
+            start_line=self._line(node),
+            end_line=self._end_line(node),
+            modifiers=modifiers,
+            annotations=annotations,
+            imports=tuple(self._imports),
+            superclass=superclass,
+            interfaces=interfaces,
             fields=tuple(b.fields),
             methods=tuple(b.methods),
             enum_constants=tuple(b.enum_constants),
             enclosing=b.enclosing,
         )
 
-    def _type_list(self, pattern: re.Pattern[str], clauses: str) -> tuple[str, ...]:
-        found = pattern.search(clauses)
-        if not found:
+    def _type_list(self, node: Node | None) -> tuple[str, ...]:
+        if node is None or (types := _first(node, "type_list")) is None:
             return ()
-        text = found.group(1)
-        return tuple(normalize_type(text[s:e]) for s, e in split_top_level(text, 0, len(text)))
+        return tuple(self._type(t) for t in types.named_children)
 
     # --- miembros -----------------------------------------------------------------
 
-    def _has_initializer(self, start: int, end: int) -> bool:
-        """Un '=' antes del primer '(' indica un campo con inicializador."""
-        equals = find_top_level(self._m, start, end, "=")
-        paren = find_top_level(self._m, start, end, "(")
-        return equals != -1 and (paren == -1 or equals < paren)
-
-    def _is_field_header(self, start: int, end: int) -> bool:
-        """Declaración terminada en ';': es campo si tiene inicializador o no tiene '('."""
-        return self._has_initializer(start, end) or find_top_level(self._m, start, end, "(") == -1
-
-    def _add_fields(self, owner: _TypeBuilder, header_start: int, rest: int, semi: int,
-                    annotations: tuple[JavaAnnotation, ...]) -> None:
-        declarators = split_top_level(self._m, rest, semi, brackets="(<[{")
-        if not declarators:
+    def _add_fields(self, node: Node, owner: _TypeBuilder) -> None:
+        modifiers, annotations = self._modifiers(node)
+        type_node = node.child_by_field_name("type")
+        if type_node is None:
             return
-        first_start, first_end = declarators[0]
-        modifiers, declaration = _strip_modifiers(self._before_equals(first_start, first_end))
-        name_match = _TRAILING_NAME.search(declaration.strip())
-        if not name_match:
+        field_type = self._type(type_node)
+        start, end = self._line(node), self._end_line(node)
+        for declarator in node.children_by_field_name("declarator"):
+            if name := declarator.child_by_field_name("name"):
+                dims = declarator.child_by_field_name("dimensions")
+                owner.fields.append(JavaField(self._text(name), field_type + (self._type(dims) if dims else ""),
+                                              modifiers, annotations, start, end))
+
+    def _add_method(self, node: Node, owner: _TypeBuilder, is_constructor: bool) -> None:
+        name = node.child_by_field_name("name")
+        if name is None:
             return
-        field_type = normalize_type(declaration.strip()[:name_match.start()] + name_match.group(2))
-        if not field_type:
-            return  # p. ej. una llamada suelta; no es un campo
-        names = [name_match.group(1)]
-        for s, e in declarators[1:]:
-            if extra := _TRAILING_NAME.search(self._before_equals(s, e).strip()):
-                names.append(extra.group(1))
-        start_line, end_line = self._line(header_start), self._line(semi)
-        for name in names:
-            owner.fields.append(JavaField(name, field_type, modifiers, annotations, start_line, end_line))
-
-    def _before_equals(self, start: int, end: int) -> str:
-        equals = find_top_level(self._m, start, end, "=")
-        return self._m[start:equals if equals != -1 else end]
-
-    def _add_method(self, owner: _TypeBuilder, header_start: int, rest: int, paren: int,
-                    header_end: int, close: int, annotations: tuple[JavaAnnotation, ...],
-                    has_body: bool) -> None:
-        before = self._m[rest:paren]
-        name_match = re.search(r"(\w+)\s*$", before)
-        if not name_match:
-            return
-        name = name_match.group(1)
-        modifiers, remaining = _strip_modifiers(before[:name_match.start()])
-        remaining = remaining.strip()
-        if remaining.startswith("<"):  # parámetros genéricos del método: <T> T find()
-            depth = 0
-            for i, c in enumerate(remaining):
-                depth += (c == "<") - (c == ">")
-                if depth == 0:
-                    remaining = remaining[i + 1:]
-                    break
-        return_type = normalize_type(remaining) or None
-        if return_type is None and name != owner.name:
-            return  # no es un constructor ni un método reconocible
-
-        paren_close = matching(self._m, paren)
-        parameters = tuple(self._parameter(s, e) for s, e in split_top_level(self._m, paren + 1, paren_close))
-        throws_match = _THROWS.search(self._m[paren_close + 1:header_end])
-        throws = tuple(normalize_type(t) for t in throws_match.group(1).split(",")) if throws_match else ()
-
+        modifiers, annotations = self._modifiers(node)
+        return_type = None
+        if not is_constructor and (type_node := node.child_by_field_name("type")):
+            return_type = self._type(type_node)
+            if dims := node.child_by_field_name("dimensions"):
+                return_type += self._type(dims)
+        params = node.child_by_field_name("parameters")
+        parameters = tuple(self._parameter(p) for p in params.named_children
+                           if p.type in ("formal_parameter", "spread_parameter")) if params else ()
+        throws = _first(node, "throws")
+        body = node.child_by_field_name("body")
         owner.methods.append(JavaMethod(
-            name=name,
+            name=self._text(name),
             return_type=return_type,
             parameters=parameters,
             modifiers=modifiers,
             annotations=annotations,
-            throws=throws,
-            start_line=self._line(header_start),
-            end_line=self._line(close),
-            has_body=has_body,
+            throws=tuple(self._type(t) for t in throws.named_children) if throws else (),
+            start_line=self._line(node),
+            end_line=self._end_line(node),
+            has_body=body is not None,
+            calls=tuple(self._calls(body)) if body is not None else (),
         ))
 
-    def _parameter(self, start: int, end: int) -> JavaParameter:
-        annotations, rest = self._parse_annotations(start, end)
-        text = " ".join(w for w in self._m[rest:end].split() if w != "final")
-        varargs = "..." in text
-        text = text.replace("...", " ")
-        name_match = _TRAILING_NAME.search(text.strip())
-        if not name_match:
-            return JavaParameter(name="?", type=normalize_type(text), annotations=annotations)
-        param_type = normalize_type(text.strip()[:name_match.start()] + name_match.group(2))
-        return JavaParameter(name_match.group(1), param_type + ("..." if varargs else ""), annotations)
+    def _parameter(self, node: Node) -> JavaParameter:
+        _, annotations = self._modifiers(node)
+        type_node = node.child_by_field_name("type") or _first(node, *_TYPE_NODES)
+        param_type = self._type(type_node) if type_node else "?"
+        name = node.child_by_field_name("name")
+        if node.type == "spread_parameter":  # String... tags
+            param_type += "..."
+            declarator = _first(node, "variable_declarator")
+            name = declarator.child_by_field_name("name") if declarator else None
+        if dims := node.child_by_field_name("dimensions"):
+            param_type += self._type(dims)
+        return JavaParameter(self._text(name) if name else "?", param_type, annotations)
 
-    def _record_component(self, start: int, end: int) -> JavaField:
-        param = self._parameter(start, end)
-        line = self._line(start)
+    def _record_component(self, node: Node) -> JavaField:
+        param = self._parameter(node)
+        line = self._line(node)
         return JavaField(param.name, param.type, ("private", "final"), param.annotations, line, line)
 
-    # --- anotaciones y utilidades ---------------------------------------------------
+    def _calls(self, body: Node) -> Iterator[MethodCall]:
+        """Llamadas del cuerpo en orden de aparición, sin entrar en clases anónimas o locales."""
+        stack = [body]
+        while stack:
+            node = stack.pop()
+            if node.type == "method_invocation" and (name := node.child_by_field_name("name")):
+                receiver = node.child_by_field_name("object")
+                arguments = node.child_by_field_name("arguments")
+                yield MethodCall(
+                    name=self._text(name),
+                    receiver=self._text(receiver) if receiver else None,
+                    arguments=" ".join(self._text(arguments)[1:-1].split()) if arguments else "",
+                    name_span=self._span(name),
+                )
+            stack.extend(c for c in reversed(node.named_children) if c.type != "class_body")
 
-    def _parse_annotations(self, start: int, end: int) -> tuple[tuple[JavaAnnotation, ...], int]:
-        """Lee las anotaciones al inicio de m[start:end]. Devuelve (anotaciones, offset tras ellas)."""
-        m = self._m
-        if m.find("@", start, end) == -1:  # caso habitual: nada que leer
-            return (), start
+    # --- modificadores y anotaciones ---------------------------------------------------
+
+    def _modifiers(self, node: Node) -> tuple[tuple[str, ...], tuple[JavaAnnotation, ...]]:
+        modifiers_node = _first(node, "modifiers")
+        if modifiers_node is None:
+            return (), ()
+        words: list[str] = []
         annotations: list[JavaAnnotation] = []
-        i = start
-        while (found := _ANNOTATION.match(m, i, end)) and found.group(1) != "interface":
-            line = self._line(i)
-            j = found.end()
-            arguments = None
-            if j < end and m[j] == "(":
-                close = matching(m, j)
-                arguments = " ".join(self._text[j + 1:close].split())
-                j = close + 1
-            simple_name = found.group(1).rsplit(".", 1)[-1]
-            annotations.append(JavaAnnotation(simple_name, arguments, line))
-            i = j
-        return tuple(annotations), i
+        for child in modifiers_node.children:
+            if child.type in _ANNOTATIONS:
+                annotations.append(self._annotation(child))
+            elif not child.is_extra:  # comentarios entre modificadores
+                words.append(self._text(child))
+        return tuple(words), tuple(annotations)
 
-    def _line(self, offset: int) -> int:
-        """Línea del primer carácter no vacío a partir de `offset`."""
-        if found := _NON_SPACE.search(self._m, offset):
-            offset = found.start()
-        return self._lines.line_of(offset)
+    def _annotation(self, node: Node) -> JavaAnnotation:
+        name = node.child_by_field_name("name")
+        args = node.child_by_field_name("arguments")
+        arguments = " ".join(self._text(args)[1:-1].split()) if args else None
+        name_text = self._text(name) if name else ""
+        name_span = None
+        if name is not None:
+            start = self._span(node)
+            end = self._span(name)
+            name_span = SourceSpan(start.line, start.column, end.end_line, end.end_column)
+        return JavaAnnotation(name_text.rsplit(".", 1)[-1], arguments, self._line(node),
+                              span=self._span(node), name_span=name_span)
+
+    # --- utilidades ---------------------------------------------------------------------
+
+    def _text(self, node: Node) -> str:
+        return self._source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+
+    def _type(self, node: Node) -> str:
+        return normalize_type(self._text(node))
+
+    def _line(self, node: Node) -> int:
+        return node.start_point.row + 1
+
+    def _end_line(self, node: Node) -> int:
+        return node.end_point.row + 1
+
+    def _span(self, node: Node) -> SourceSpan:
+        start, end = node.start_point, node.end_point
+        return SourceSpan(start.row + 1, self._column(start.row, start.column),
+                          end.row + 1, self._column(end.row, end.column))
+
+    def _column(self, row: int, byte_column: int) -> int:
+        """tree-sitter cuenta bytes UTF-8; el resto de CodeQuest, caracteres ("año" mide 3, no 4)."""
+        start = self._line_starts[row]
+        return len(self._source[start:start + byte_column].decode("utf-8", errors="replace"))
+
+
+_TYPE_NODES = ("type_identifier", "generic_type", "scoped_type_identifier", "array_type", "integral_type",
+               "floating_point_type", "boolean_type")
+
+
+def _first(node: Node, *types: str) -> Node | None:
+    return next((c for c in node.children if c.type in types), None)

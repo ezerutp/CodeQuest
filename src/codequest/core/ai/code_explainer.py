@@ -33,8 +33,8 @@ class CodeExplainer:
         ]
         if question.mutation is not None:  # "Encuentra el error": el contexto trae el código original
             mutation = question.mutation
-            lines[1] = (f"Concepto: {concept.title}. En el ejercicio se cambió `{mutation.find}` por "
-                        f"`{mutation.replace}` en la línea {mutation.line}: {mutation.explanation}")
+            lines[1] = (f"Concepto: {concept.title}. En el ejercicio se cambió `{mutation.original}` por "
+                        f"`{mutation.replacement}` en la línea {mutation.line}: {mutation.explanation}")
             if evaluation.outcome is Outcome.INCORRECT:
                 lines.append(f"El estudiante señaló la línea {evaluation.answer}, que no era la cambiada.")
             elif evaluation.outcome is Outcome.SKIPPED:
