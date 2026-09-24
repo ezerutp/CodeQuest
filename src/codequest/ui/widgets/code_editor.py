@@ -1,5 +1,6 @@
 """Editor de código reutilizable: números de línea, resaltado y modo solo lectura/editable."""
 
+import weakref
 from collections.abc import Iterable
 
 from PySide6.QtCore import QRect, QSize, Qt
@@ -23,6 +24,18 @@ from codequest.ui.widgets.style_utils import repolish
 MONOSPACE_FAMILIES = ("JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "Noto Sans Mono",
                       "DejaVu Sans Mono", "Consolas", "Menlo")
 INDENT = "    "
+DEFAULT_FONT_SIZE = 11
+
+_font_size = DEFAULT_FONT_SIZE
+_editors: "weakref.WeakSet[CodeEditor]" = weakref.WeakSet()
+
+
+def set_editor_font_size(point_size: int) -> None:
+    """Cambia el tamaño de letra de todos los editores (abiertos y futuros)."""
+    global _font_size
+    _font_size = point_size
+    for editor in list(_editors):
+        editor.apply_font_size(point_size)
 
 
 def monospace_font(point_size: int = 11) -> QFont:
@@ -61,17 +74,23 @@ class CodeEditor(QPlainTextEdit):
         self._first_line = 1
         self._highlighted: set[int] = set()
 
-        self.setFont(monospace_font())
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * len(INDENT))
         self._highlighter = JavaHighlighter(self.document(), self._palette)
 
         self._gutter = _LineNumberArea(self)
         self.blockCountChanged.connect(self._update_gutter_width)
         self.updateRequest.connect(self._update_gutter)
         self.cursorPositionChanged.connect(self._refresh_selections)
-        self._update_gutter_width()
+        self.apply_font_size(_font_size)
         self.set_read_only(read_only)
+        _editors.add(self)
+
+    def apply_font_size(self, point_size: int) -> None:
+        self.setFont(monospace_font(point_size))
+        self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * len(INDENT))
+        self._update_gutter_width()
+        self._gutter.setFont(self.font())
+        self.updateGeometry()
 
     # --- API pública ------------------------------------------------------------
 

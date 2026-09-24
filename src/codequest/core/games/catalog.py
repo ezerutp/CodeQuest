@@ -14,9 +14,11 @@ class ModeInfo:
 
 MULTIPLE_CHOICE = "multiple_choice"
 EXPLAIN_CODE = "explain_code"
+TRUE_FALSE = "true_false"
 
 GAME_MODES: tuple[ModeInfo, ...] = (
     ModeInfo(MULTIPLE_CHOICE, "Alternativas", "Responde preguntas sobre tu propio código.", available=True),
+    ModeInfo(TRUE_FALSE, "Verdadero o falso", "Decide si la afirmación sobre tu código es cierta.", available=True),
     ModeInfo(EXPLAIN_CODE, "Explícame este código", "Describe con tus palabras qué hace un fragmento.",
              uses_ai=True, available=True),
     ModeInfo("find_error", "Encuentra el error", "Descubre el error escondido en código real."),

@@ -10,10 +10,15 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 
+MIN_FONT_SIZE = 9
+MAX_FONT_SIZE = 20
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     ai_enabled: bool = True  # si hay API key, el usuario puede apagar la IA igualmente
     ai_model: str | None = None  # None = el modelo por defecto del proveedor
+    editor_font_size: int = 11  # puntos, entre MIN_FONT_SIZE y MAX_FONT_SIZE
 
     def with_changes(self, **changes: object) -> "Settings":
         return replace(self, **changes)
@@ -43,6 +48,9 @@ class SettingsStore:
                 values[name] = value
             elif name == "ai_model" and (value is None or (isinstance(value, str) and value.strip())):
                 values[name] = value.strip() if isinstance(value, str) else None
+            elif (name == "editor_font_size" and isinstance(value, int) and not isinstance(value, bool)
+                  and MIN_FONT_SIZE <= value <= MAX_FONT_SIZE):
+                values[name] = value
         return Settings(**values)
 
     def save(self, settings: Settings) -> None:

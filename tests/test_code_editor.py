@@ -85,3 +85,15 @@ def test_line_number_gutter_grows_with_digits(qapp: QApplication) -> None:
     editor.set_code("a", first_line=12345)
 
     assert editor.line_number_width() > narrow
+
+
+def test_font_size_applies_to_open_and_new_editors(qapp: QApplication) -> None:
+    from codequest.ui.widgets.code_editor import DEFAULT_FONT_SIZE, set_editor_font_size
+
+    editor = CodeEditor()
+    try:
+        set_editor_font_size(16)
+        assert editor.font().pointSize() == 16 and CodeEditor().font().pointSize() == 16
+    finally:
+        set_editor_font_size(DEFAULT_FONT_SIZE)
+    assert editor.font().pointSize() == DEFAULT_FONT_SIZE

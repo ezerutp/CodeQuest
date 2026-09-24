@@ -37,6 +37,7 @@ class AnnotationPurposeRule(QuestionRule):
                         key=_key(concept.id, cls),
                         prompt=f"¿Qué función cumple `@{ann.name}` en la clase `{name}`?",
                         concept=concept, class_name=cls.qualified_name, snippet=_focus(header, ann),
+                        statement_lead=f"En la clase `{name}`, `@{ann.name}`",
                     )
             for field in cls.fields:
                 snippet = SnippetRef(cls.file, field.start_line, field.end_line)
@@ -46,6 +47,7 @@ class AnnotationPurposeRule(QuestionRule):
                             key=_key(concept.id, cls, field.name),
                             prompt=f"En el campo `{field.name}` de `{name}`, ¿qué indica `@{ann.name}`?",
                             concept=concept, class_name=cls.qualified_name, snippet=_focus(snippet, ann),
+                            statement_lead=f"En el campo `{field.name}` de `{name}`, `@{ann.name}`",
                         )
             for method in cls.methods:
                 yield from self._method_drafts(cls, name, method, kb)
@@ -61,6 +63,7 @@ class AnnotationPurposeRule(QuestionRule):
                     key=_key(concept.id, cls, member),
                     prompt=f"En {where}, ¿qué propósito tiene `@{ann.name}`?",
                     concept=concept, class_name=cls.qualified_name, snippet=_focus(snippet, ann),
+                    statement_lead=f"En {where}, `@{ann.name}`",
                 )
         for param in method.parameters:
             for ann in param.annotations:
@@ -69,6 +72,7 @@ class AnnotationPurposeRule(QuestionRule):
                         key=_key(concept.id, cls, f"{member}:{param.name}"),
                         prompt=f"En `{method.name}()`, ¿qué hace `@{ann.name}` con el parámetro `{param.name}`?",
                         concept=concept, class_name=cls.qualified_name, snippet=_focus(snippet, ann),
+                        statement_lead=f"En `{method.name}()`, `@{ann.name}` (en el parámetro `{param.name}`)",
                     )
 
 
@@ -85,6 +89,7 @@ class SupertypeRule(QuestionRule):
                         prompt=f"¿Qué obtiene `{display_name(cls)}` al extender `{supertype}`?",
                         concept=concept, class_name=cls.qualified_name,
                         snippet=SnippetRef(header.file, header.start_line, header.end_line, (header.start_line,)),
+                        statement_lead=f"Al extender `{supertype}`, `{display_name(cls)}`",
                     )
 
 

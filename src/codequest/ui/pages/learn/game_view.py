@@ -10,6 +10,8 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QV
 
 from codequest.core.analysis.snippets import CodeSnippet, SnippetRef
 from codequest.core.games.base import Evaluation, GameSession, Outcome
+from codequest.core.games.catalog import mode_title
+from codequest.core.questions.generator import TRUE_FALSE_CHOICES
 from codequest.ui.formatting import inline_code_html
 from codequest.ui.icons import icon
 from codequest.ui.pages.learn.feedback import FeedbackPanel
@@ -151,14 +153,21 @@ class GameView(QWidget):
         if session is None or session.current is None:
             return
         question = session.current
-        self._counter.setText(f"ALTERNATIVAS · PREGUNTA {session.position + 1} DE {session.total}")
+        title = mode_title(session.mode.mode_id).upper()
+        self._counter.setText(f"{title} · PREGUNTA {session.position + 1} DE {session.total}")
         self._progress.setValue(session.position)
         self._score.setText(f"{session.correct_count} correctas")
-        self._prompt.setText(inline_code_html(question.prompt))
+        is_statement = question.choices == TRUE_FALSE_CHOICES
+        self._prompt.setText(inline_code_html(f"«{question.prompt}»" if is_statement else question.prompt))
 
         self._show_snippet(question.snippet)
-        for choice, text in zip(self._choices, question.choices, strict=True):
-            choice.set_text(text)
+        for index, choice in enumerate(self._choices):
+            visible = index < len(question.choices)
+            choice.setVisible(visible)
+            if not visible:
+                continue
+            choice.set_text(question.choices[index])
+            choice.set_letter(question.choices[index][0] if is_statement else LETTERS[index])
             choice.set_state("idle")
             choice.setEnabled(True)
         self._dont_know.setEnabled(True)
@@ -186,7 +195,8 @@ class GameView(QWidget):
         self._editor.setFixedHeight(lines * self._editor.fontMetrics().lineSpacing() + 26)
 
     def _answer(self, index: int) -> None:
-        if self._can_answer():
+        # Los atajos 3/4 no aplican cuando la pregunta tiene solo 2 opciones (Verdadero/Falso).
+        if self._can_answer() and index < len(self._session.current.choices):
             evaluation = self._session.answer(index)
             self.answered.emit(evaluation)
             self._reveal(evaluation)
@@ -214,7 +224,7 @@ class GameView(QWidget):
         self._score.setText(f"{self._session.correct_count} correctas")
         self._progress.setValue(self._session.position + 1)
 
-        self._feedback.show_evaluation(evaluation, LETTERS[question.correct_index])
+        self._feedback.show_evaluation(evaluation, self._choices[question.correct_index].letter)
         self._feedback.show()
         last = self._session.position + 1 == self._session.total
         self._next.setText("Ver resultados" if last else "Siguiente")

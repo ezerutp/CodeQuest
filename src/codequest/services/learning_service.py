@@ -5,12 +5,12 @@ from collections.abc import Mapping
 
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.games.base import BaseGameMode, GameSession
-from codequest.core.games.catalog import EXPLAIN_CODE, MULTIPLE_CHOICE
+from codequest.core.games.catalog import EXPLAIN_CODE, MULTIPLE_CHOICE, TRUE_FALSE
 from codequest.core.games.explain_code import ExplainCodeMode
-from codequest.core.games.multiple_choice import MultipleChoiceMode
+from codequest.core.games.multiple_choice import MultipleChoiceMode, TrueFalseMode
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.coverage import KnowledgeReport, build_report
-from codequest.core.questions.generator import QuestionGenerator
+from codequest.core.questions.generator import ChoiceStyle, QuestionGenerator
 from codequest.core.questions.rules import EXPLAIN_RULES
 
 ROUND_SIZE = 10
@@ -23,10 +23,13 @@ class LearningService:
         self._generator = QuestionGenerator(self.kb)
         self._generators = {
             MULTIPLE_CHOICE: self._generator,
-            EXPLAIN_CODE: QuestionGenerator(self.kb, EXPLAIN_RULES, with_choices=False),
+            EXPLAIN_CODE: QuestionGenerator(self.kb, EXPLAIN_RULES, style=ChoiceStyle.NONE),
+            TRUE_FALSE: QuestionGenerator(self.kb, style=ChoiceStyle.TRUE_FALSE),
         }
         self._rng = rng or random.Random()
-        self._modes: dict[str, BaseGameMode] = {MULTIPLE_CHOICE: MultipleChoiceMode(), EXPLAIN_CODE: ExplainCodeMode()}
+        self._modes: dict[str, BaseGameMode] = {
+            MULTIPLE_CHOICE: MultipleChoiceMode(), TRUE_FALSE: TrueFalseMode(), EXPLAIN_CODE: ExplainCodeMode(),
+        }
 
     def knowledge_report(self, model: ProjectModel) -> KnowledgeReport:
         """Conceptos que usa el proyecto y anotaciones/supertipos que aún no conocemos."""

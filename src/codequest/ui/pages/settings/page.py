@@ -3,19 +3,29 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QCheckBox, QComboBox, QGridLayout, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QCheckBox,
+    QComboBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QWidget,
+)
 
 from codequest import __version__
 from codequest.app.constants import APP_NAME
 from codequest.app.context import AppContext
-from codequest.core.settings import Settings
+from codequest.core.settings import MAX_FONT_SIZE, MIN_FONT_SIZE, Settings
 from codequest.ui.formatting import ai_detail, ai_indicator, inline_code_html
 from codequest.ui.icons import icon
 from codequest.ui.pages.base import Page
 from codequest.ui.theme import current_palette
-from codequest.ui.widgets import Card, IconText, StatusIndicator, heading, mono, muted, section_title
+from codequest.ui.widgets import Card, CodeEditor, IconText, StatusIndicator, heading, mono, muted, section_title
 from codequest.ui.widgets.style_utils import repolish
 
 PRIVACY_LINES = (
@@ -45,6 +55,7 @@ class SettingsPage(Page):
     ai_enabled_changed = Signal(bool)
     ai_model_changed = Signal(object)  # str | None
     reset_progress_requested = Signal()
+    editor_font_size_changed = Signal(int)
 
     def __init__(self, models: tuple[tuple[str, str, str], ...], paths: DataPaths,
                  parent: QWidget | None = None) -> None:
@@ -55,6 +66,8 @@ class SettingsPage(Page):
 
         self.layout_.addWidget(section_title("Asistente de IA"))
         self.layout_.addWidget(self._build_ai_card(models))
+        self.layout_.addWidget(section_title("Apariencia"))
+        self.layout_.addWidget(self._build_appearance_card())
         self.layout_.addWidget(section_title("Privacidad"))
         self.layout_.addWidget(self._build_privacy_card())
         self.layout_.addWidget(section_title("Tus datos"))
@@ -92,6 +105,39 @@ class SettingsPage(Page):
         card.body.addLayout(row)
         self._env_note = muted("")
         card.body.addWidget(self._env_note)
+        return card
+
+    def _build_appearance_card(self) -> Card:
+        card = Card(padding=20)
+        card.body.setSpacing(12)
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        row.addWidget(QLabel("Tamaño de letra del código"))
+        row.addSpacing(8)
+        # Botones propios: las flechas nativas del QSpinBox no encajan con el QSS del tema.
+        self._font_size = QSpinBox()
+        self._font_size.setRange(MIN_FONT_SIZE, MAX_FONT_SIZE)
+        self._font_size.setSuffix(" pt")
+        self._font_size.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self._font_size.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._font_size.valueChanged.connect(self._on_font_size)
+        for name, step in (("minus", -1), ("plus", 1)):
+            button = QPushButton()
+            button.setIcon(icon(name))
+            button.setProperty("variant", "ghost")
+            button.setToolTip("Más pequeña" if step < 0 else "Más grande")
+            button.clicked.connect(lambda _=False, s=step: self._font_size.stepBy(s))
+            row.addWidget(button)
+            if step < 0:
+                row.addWidget(self._font_size)
+        row.addStretch(1)
+        card.body.addLayout(row)
+        self._preview = CodeEditor(read_only=True)
+        self._preview.set_code('@GetMapping("/{id}")\npublic User get(@PathVariable Long id) {\n'
+                               '    return service.findById(id);\n}', first_line=25)
+        self._preview.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # su alto ya se ajusta
+        card.body.addWidget(self._preview)
+        self._fit_preview()
         return card
 
     def _build_privacy_card(self) -> Card:
@@ -165,6 +211,7 @@ class SettingsPage(Page):
         self._ai_detail.setText(ai_detail(context.ai, context.ai_enabled))
         self._ai_toggle.setEnabled(context.ai.available)
         self._ai_toggle.setChecked(context.ai.available and settings.ai_enabled)
+        self._font_size.setValue(settings.editor_font_size)
         self._ai_toggle.setToolTip("" if context.ai.available else context.ai.detail)
 
         index = self._model.findData(effective_model)
@@ -193,6 +240,16 @@ class SettingsPage(Page):
     def _on_toggle(self, checked: bool) -> None:
         if not self._updating:
             self.ai_enabled_changed.emit(checked)
+
+    def _on_font_size(self, value: int) -> None:
+        if not self._updating:
+            self.editor_font_size_changed.emit(value)
+        QTimer.singleShot(0, self._fit_preview)  # tras aplicar la fuente nueva
+
+    def _fit_preview(self) -> None:
+        """La vista previa muestra sus 4 líneas completas con cualquier tamaño de letra."""
+        self._preview.setFixedHeight(4 * self._preview.fontMetrics().lineSpacing() + 26)
+        self.content_changed()
 
     def _on_model(self, _index: int) -> None:
         if not self._updating:
