@@ -44,3 +44,16 @@ QPushButton[variant="ghost"]:hover {
     background: ${surface_raised};
     color: ${text};
 }
+
+QPushButton[variant="danger"] {
+    background: transparent;
+    border: 1px solid ${danger};
+    color: ${danger};
+}
+QPushButton[variant="danger"]:hover {
+    background: ${danger_soft};
+}
+QPushButton[variant="danger"]:disabled {
+    border-color: ${border};
+    color: ${text_subtle};
+}

@@ -8,6 +8,7 @@ QLineEdit, QComboBox {
 }
 QLineEdit:focus, QComboBox:focus { border-color: ${accent}; }
 QLineEdit:hover, QComboBox:hover { border-color: ${border_strong}; }
+QComboBox:disabled { color: ${text_subtle}; border-color: ${border}; background: ${surface}; }
 
 QComboBox::drop-down { border: none; width: 22px; }
 QComboBox QAbstractItemView {
@@ -19,3 +20,20 @@ QComboBox QAbstractItemView {
     padding: 4px;
     selection-background-color: ${accent_soft};
 }
+
+QCheckBox { spacing: 10px; font-size: 14px; }
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid ${border_strong};
+    border-radius: 5px;
+    background: ${bg};
+}
+QCheckBox::indicator:hover { border-color: ${accent}; }
+QCheckBox::indicator:checked {
+    background: ${accent};
+    border-color: ${accent};
+    image: none;
+}
+QCheckBox:disabled { color: ${text_subtle}; }
+QCheckBox::indicator:disabled { background: ${surface}; border-color: ${border}; }

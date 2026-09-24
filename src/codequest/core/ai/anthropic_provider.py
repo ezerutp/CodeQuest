@@ -10,6 +10,12 @@ from codequest.core.ai.base import AIError, AIErrorKind, AIProvider, AIRequest, 
 log = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "claude-opus-5"
+# Modelos que se ofrecen en Configuración: (id, nombre, descripción).
+AVAILABLE_MODELS: tuple[tuple[str, str, str], ...] = (
+    ("claude-opus-5", "Claude Opus 5", "Recomendado: las explicaciones más cuidadas."),
+    ("claude-sonnet-5", "Claude Sonnet 5", "Más económico, muy buena calidad."),
+    ("claude-haiku-4-5", "Claude Haiku 4.5", "El más rápido y barato; explicaciones más simples."),
+)
 MODEL_ENV = "CODEQUEST_AI_MODEL"
 # Si el modelo declina una petición, la API la reintenta en el modelo recomendado para ese caso.
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -20,7 +26,8 @@ class AnthropicProvider(AIProvider):
     name = "Claude"
 
     def __init__(self, model: str | None = None, client: Any = None, timeout: float = DEFAULT_TIMEOUT_S) -> None:
-        self.model = model or os.environ.get(MODEL_ENV, "").strip() or DEFAULT_MODEL
+        # La variable de entorno manda sobre el ajuste guardado: permite probar otro modelo sin tocarlo.
+        self.model = os.environ.get(MODEL_ENV, "").strip() or model or DEFAULT_MODEL
         if client is None:
             import anthropic  # import diferido: el paquete es opcional
 

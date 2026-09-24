@@ -9,8 +9,10 @@ from codequest.core.analysis.roles import ComponentRole
 from codequest.ui.theme import current_palette
 
 
-def ai_indicator(ai: AIStatus) -> tuple[str, str]:
+def ai_indicator(ai: AIStatus, enabled: bool = True) -> tuple[str, str]:
     """Devuelve (texto, estado) para un StatusIndicator."""
+    if ai.available and not enabled:
+        return "IA desactivada", "off"
     if ai.available:
         return f"{ai.provider} conectada", "on"
     if ai.provider:
@@ -86,3 +88,9 @@ def session_date(iso: str, now: datetime | None = None) -> str:
     if moment.date() == today - timedelta(days=1):
         return f"Ayer · {clock}"
     return f"{moment.day} {_MONTHS[moment.month - 1]} · {clock}"
+
+
+def ai_detail(ai: AIStatus, enabled: bool = True) -> str:
+    if ai.available and not enabled:
+        return "Desactivada en Configuración. Todo funciona en modo local."
+    return ai.detail
