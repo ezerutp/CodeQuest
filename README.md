@@ -6,7 +6,23 @@ CodeQuest es una aplicación de escritorio que analiza el repositorio donde la e
 y convierte su código real en ejercicios interactivos. La primera versión soporta
 proyectos **Java · Spring Boot · Maven/Gradle**.
 
-Estado: **v0.1 en desarrollo**. Ver [docs/PLAN.md](docs/PLAN.md) para la arquitectura y el roadmap.
+Versión actual: **0.3.0**. Ver [docs/PLAN.md](docs/PLAN.md) para la arquitectura y el roadmap.
+
+## Modos de juego
+
+Todas las preguntas salen del código de tu proyecto:
+
+| Modo | Qué haces | IA |
+|------|-----------|----|
+| Alternativas | Eliges qué hace una anotación o un supertipo en tu código | No |
+| Verdadero o falso | Decides si una afirmación sobre tu código es cierta | No |
+| Encuentra el error | Señalas la línea que se cambió en tu código | No |
+| Corrige el código | Editas el fragmento hasta dejarlo sin el error | No |
+| Comparaciones | Explicas la diferencia entre lo que usas y su alternativa (`@RestController` vs `@Controller`…) | No |
+| Explícame este código | Describes con tus palabras qué hace un método; Claude lo evalúa | Sí |
+
+Los errores de *Encuentra el error* y *Corrige el código* se aplican sobre una copia en memoria:
+tu proyecto nunca se modifica.
 
 ## Requisitos
 
