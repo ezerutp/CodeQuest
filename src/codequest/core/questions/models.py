@@ -22,9 +22,13 @@ class Question:
     concept: Concept
     class_name: str
     snippet: SnippetRef | None
-    choices: tuple[str, ...]
-    correct_index: int
+    choices: tuple[str, ...] = ()  # vacío en ejercicios de respuesta libre
+    correct_index: int = -1
+
+    @property
+    def is_free_text(self) -> bool:
+        return not self.choices
 
     @property
     def correct_choice(self) -> str:
-        return self.choices[self.correct_index]
+        return self.choices[self.correct_index] if self.choices else self.concept.summary

@@ -62,6 +62,8 @@ class MainWindow(QMainWindow):
         self._percent_before_round = 0
         self._code_consent = False  # consentimiento para enviar código, por proyecto y sesión
         self._explaining_key: str | None = None
+        self._grading_key: str | None = None
+        self._last_mode = MULTIPLE_CHOICE
         self._model: ProjectModel | None = None
         self._last_scope: str | None = None  # clase de la última ronda, para "Otra ronda"
 
@@ -81,10 +83,11 @@ class MainWindow(QMainWindow):
 
         self._learn = LearnPage(load_snippet=lambda ref: service.read_snippet(self._model, ref))
         self._learn.mode_selected.connect(self._start_mode)
-        self._learn.play_again.connect(lambda: self._start_round(self._last_scope))
+        self._learn.play_again.connect(lambda: self._start_round(self._last_scope, self._last_mode))
         self._learn.go_home.connect(lambda: self.show_page(PageId.HOME))
         self._learn.open_class.connect(self._open_class)
         self._learn.explain_requested.connect(self._explain_with_code)
+        self._learn.explanation_submitted.connect(self._grade_explanation)
         self._learn.answered.connect(self._progress.record)
         self._learn.round_finished.connect(self._on_round_finished)
         self._learn.set_ai_available(self._explain.can_explain, self._explain.provider_name)
@@ -108,6 +111,11 @@ class MainWindow(QMainWindow):
         self._explain_task = BackgroundTask(self)
         self._explain_task.finished.connect(self._on_explanation_ready)
         self._explain_task.failed.connect(self._on_explanation_failed)
+        self._grade_task = BackgroundTask(self)
+        self._grade_task.finished.connect(
+            lambda feedback: self._grading_key and self._learn.apply_feedback(self._grading_key, feedback))
+        self._grade_task.failed.connect(
+            lambda message: self._grading_key and self._learn.show_grading_error(self._grading_key, message))
         self._settings_page = SettingsPage(AVAILABLE_MODELS, data_paths or DataPaths(None, knowledge_dir, None, None))
         self._settings_page.ai_enabled_changed.connect(self._set_ai_enabled)
         self._settings_page.ai_model_changed.connect(self._set_ai_model)
@@ -287,22 +295,46 @@ class MainWindow(QMainWindow):
         except (OSError, ValueError) as exc:  # el archivo cambió o desapareció desde el análisis
             self._learn.show_ai_error(key, f"No se pudo leer el código: {exc}")
             return
-        if not self._code_consent:
-            items = "\n".join(f"• {line}" for line in context.summary())
-            if not confirm(
-                self, "Explícamelo con mi código",
-                f"Para explicarte este concepto con tu código se enviará a {self._explain.provider_name}:\n\n{items}",
-                details="Solo el fragmento de la pregunta va como código; del resto se envían las firmas. "
-                        "No volveré a preguntarte durante esta sesión con este proyecto.",
-                confirm_text="Enviar y explicar", icon_name="ai",
-            ):
-                return
-            self._code_consent = True
+        if not self._ensure_code_consent(context, "Explícamelo con mi código",
+                                         "Para explicarte este concepto con tu código", "Enviar y explicar"):
+            return
         if not self._explain_task.start(lambda _progress, _cancel: self._explain.explain(evaluation, context)):
             self._learn.show_ai_error(key, "Espera a que termine la explicación anterior.")
             return
         self._explaining_key = key
         self._learn.show_ai_loading(key)
+
+    def _ensure_code_consent(self, context, title: str, purpose: str, confirm_text: str) -> bool:
+        """Antes de enviar código a la IA, una vez por proyecto y sesión, con la lista exacta."""
+        if self._code_consent:
+            return True
+        items = "\n".join(f"• {line}" for line in context.summary())
+        if not confirm(
+            self, title, f"{purpose} se enviará a {self._explain.provider_name}:\n\n{items}",
+            details="Solo el fragmento del ejercicio va como código; del resto se envían las firmas. "
+                    "No volveré a preguntarte durante esta sesión con este proyecto.",
+            confirm_text=confirm_text, icon_name="ai",
+        ):
+            return False
+        self._code_consent = True
+        return True
+
+    def _grade_explanation(self, question, text: str) -> None:
+        """Modo "Explícame este código": la IA evalúa la respuesta en segundo plano."""
+        if self._model is None:
+            return
+        try:
+            context = self._explain.context_for(self._model, question)
+        except (OSError, ValueError) as exc:
+            self._learn.show_grading_error(question.key, f"No se pudo leer el código: {exc}")
+            return
+        if not self._ensure_code_consent(context, "Explícame este código",
+                                         "Para evaluar tu explicación", "Enviar y evaluar"):
+            return
+        if not self._grade_task.start(lambda _progress, _cancel: self._explain.grade(question, text, context)):
+            return
+        self._grading_key = question.key
+        self._learn.show_grading(question.key)
 
     def _on_explanation_ready(self, text: str) -> None:
         if self._explaining_key is not None:
@@ -323,6 +355,12 @@ class MainWindow(QMainWindow):
         if not mode.available:
             self._learn.show_mode_select(f"«{mode.title}» llegará en una próxima versión. "
                                          "Mientras tanto, prueba con Alternativas.")
+            self.show_page(PageId.LEARN)
+            return
+        if mode.uses_ai and not self._explain.can_explain:
+            self._learn.show_mode_select(
+                f"«{mode.title}» necesita IA para evaluar tus respuestas. Define ANTHROPIC_API_KEY y "
+                "actívala en Configuración; mientras tanto, prueba con Alternativas.")
             self.show_page(PageId.LEARN)
             return
         self._start_round(None, mode_id)
@@ -357,6 +395,7 @@ class MainWindow(QMainWindow):
             )
             return
         self._last_scope = class_name
+        self._last_mode = mode_id
         self._percent_before_round = self._current_percent()
         self._progress.start(session)
         self._learn.start(session, label)
@@ -384,4 +423,5 @@ class MainWindow(QMainWindow):
         self._runner.shutdown()
         self._ai_task.shutdown()
         self._explain_task.shutdown()
+        self._grade_task.shutdown()
         super().closeEvent(event)

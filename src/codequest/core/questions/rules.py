@@ -88,7 +88,38 @@ class SupertypeRule(QuestionRule):
                     )
 
 
+class ExplainMethodRule(QuestionRule):
+    """"Explica con tus palabras qué hace este método" para métodos reales y significativos.
+
+    Solo métodos con cuerpo, de tamaño razonable y con una anotación conocida: el concepto
+    sirve para el progreso y orienta al evaluador. Se descartan getters/setters y constructores.
+    """
+
+    MIN_LINES = 3
+    MAX_LINES = 40
+
+    def drafts(self, model: ProjectModel, kb: KnowledgeBase) -> Iterator[QuestionDraft]:
+        for cls in model.main_classes:
+            name = display_name(cls)
+            for method in cls.methods:
+                lines = method.end_line - method.start_line + 1
+                if (method.is_constructor or not method.has_body
+                        or not self.MIN_LINES <= lines <= self.MAX_LINES):
+                    continue
+                concept = next((c for a in method.annotations if (c := kb.for_annotation(a.name))), None)
+                if concept is None:
+                    continue
+                member = f"{method.name}({', '.join(p.type for p in method.parameters)})"
+                yield QuestionDraft(
+                    key=f"explain:{cls.qualified_name}#{member}",
+                    prompt=f"Explica con tus propias palabras qué hace el método `{method.name}()` de `{name}`.",
+                    concept=concept, class_name=cls.qualified_name,
+                    snippet=SnippetRef(cls.file, method.start_line, method.end_line),
+                )
+
+
 DEFAULT_RULES: tuple[QuestionRule, ...] = (AnnotationPurposeRule(), SupertypeRule())
+EXPLAIN_RULES: tuple[QuestionRule, ...] = (ExplainMethodRule(),)
 
 
 def _key(concept_id: str, cls: JavaClass, member: str = "") -> str:

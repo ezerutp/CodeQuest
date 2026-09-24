@@ -92,10 +92,12 @@ class SummaryView(QWidget):
             concept = evaluation.question.concept
             row = Card(padding=14)
             head = QHBoxLayout()
-            skipped = evaluation.outcome is Outcome.SKIPPED
             palette = current_palette()
-            head.addWidget(icon_label("explain" if skipped else "incorrect", size=18,
-                                      color=palette.syntax_annotation if skipped else palette.danger))
+            icon_name, color = {
+                Outcome.SKIPPED: ("explain", palette.syntax_annotation),
+                Outcome.PARTIAL: ("explain", palette.warning),
+            }.get(evaluation.outcome, ("incorrect", palette.danger))
+            head.addWidget(icon_label(icon_name, size=18, color=color))
             title = QLabel(inline_code_html(f"`{concept.title}` · {concept.topic.label}"))
             title.setTextFormat(Qt.TextFormat.RichText)
             head.addWidget(title, 1)

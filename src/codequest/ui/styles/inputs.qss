@@ -37,3 +37,15 @@ QCheckBox::indicator:checked {
 }
 QCheckBox:disabled { color: ${text_subtle}; }
 QCheckBox::indicator:disabled { background: ${surface}; border-color: ${border}; }
+
+QPlainTextEdit#AnswerBox {
+    background: ${bg};
+    border: 1px solid ${border};
+    border-radius: 10px;
+    color: ${text};
+    font-size: 14px;
+    padding: 10px;
+    selection-background-color: ${editor_selection};
+}
+QPlainTextEdit#AnswerBox:focus { border-color: ${accent}; }
+QPlainTextEdit#AnswerBox[readOnly="true"] { color: ${text_muted}; }

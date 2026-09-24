@@ -13,9 +13,12 @@ CHOICES_PER_QUESTION = 4
 
 
 class QuestionGenerator:
-    def __init__(self, kb: KnowledgeBase, rules: Sequence[QuestionRule] = DEFAULT_RULES) -> None:
+    def __init__(self, kb: KnowledgeBase, rules: Sequence[QuestionRule] = DEFAULT_RULES,
+                 with_choices: bool = True) -> None:
+        """`with_choices=False` para ejercicios de respuesta libre ("Explícame este código")."""
         self._kb = kb
         self._rules = tuple(rules)
+        self._with_choices = with_choices
 
     def drafts(self, model: ProjectModel, class_name: str | None = None,
                concept_ids: frozenset[str] | None = None) -> list[QuestionDraft]:
@@ -62,10 +65,13 @@ class QuestionGenerator:
                     groups.remove(group)
                 if len(picked) == limit:
                     break
-        return [self._with_choices(d, rng) for d in picked]
+        if not self._with_choices:
+            return [Question(key=d.key, prompt=d.prompt, concept=d.concept, class_name=d.class_name,
+                             snippet=d.snippet) for d in picked]
+        return [self._build_choices(d, rng) for d in picked]
 
     @staticmethod
-    def _with_choices(draft: QuestionDraft, rng: random.Random) -> Question:
+    def _build_choices(draft: QuestionDraft, rng: random.Random) -> Question:
         # Solo distractores escritos a mano: el resumen de otro concepto puede ser
         # parcialmente cierto (un @Service también "registra un bean") y generar ambigüedad.
         wrong = rng.sample(draft.concept.distractors, CHOICES_PER_QUESTION - 1)
