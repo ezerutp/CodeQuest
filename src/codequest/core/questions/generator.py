@@ -73,7 +73,7 @@ class QuestionGenerator:
                     break
         if self._style == ChoiceStyle.NONE:
             return [Question(key=d.key, prompt=d.prompt, concept=d.concept, class_name=d.class_name,
-                             snippet=d.snippet) for d in picked]
+                             snippet=d.snippet, mutation=d.mutation) for d in picked]
         if self._style == ChoiceStyle.TRUE_FALSE:
             # Mitad verdaderas y mitad falsas en orden aleatorio: con un 50 % independiente por
             # pregunta salen rachas y el estudiante aprendería a adivinar "casi siempre es falso".

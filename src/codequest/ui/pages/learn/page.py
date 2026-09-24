@@ -6,9 +6,10 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 from codequest.core.ai.explanation_grader import ExplanationFeedback
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.games.base import GameSession
-from codequest.core.games.catalog import EXPLAIN_CODE
+from codequest.core.games.catalog import EXPLAIN_CODE, FIND_ERROR
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.learn.explain_view import ExplainCodeView
+from codequest.ui.pages.learn.find_error_view import FindErrorView
 from codequest.ui.pages.learn.game_view import GameView, SnippetLoader
 from codequest.ui.pages.learn.summary_view import SummaryView
 from codequest.ui.widgets import Card, IconText, ModeGrid, heading, muted, section_title
@@ -51,6 +52,14 @@ class LearnPage(Page):
         self._game.content_changed.connect(self.content_changed)
         self.layout_.addWidget(self._game)
 
+        self._find_error = FindErrorView(load_snippet)
+        self._find_error.finished.connect(self._show_summary)
+        self._find_error.open_class.connect(self.open_class)
+        self._find_error.explain_requested.connect(self.explain_requested)
+        self._find_error.answered.connect(self.answered)
+        self._find_error.content_changed.connect(self.content_changed)
+        self.layout_.addWidget(self._find_error)
+
         self._explain = ExplainCodeView(load_snippet)
         self._explain.finished.connect(self._show_summary)
         self._explain.answered.connect(self.answered)
@@ -62,20 +71,26 @@ class LearnPage(Page):
         self._summary.play_again.connect(self.play_again)
         self._summary.go_home.connect(self.go_home)
         self.layout_.addWidget(self._summary)
-        self._views = (self._select, self._game, self._explain, self._summary)
+        self._views = (self._select, self._game, self._find_error, self._explain, self._summary)
         self._show(self._select)
 
+    # "Explícamelo mejor": cada vista descarta las respuestas que no son de su pregunta actual.
+
     def set_ai_available(self, available: bool, provider_name: str | None) -> None:
-        self._game.set_ai_available(available, provider_name)
+        for view in (self._game, self._find_error):
+            view.set_ai_available(available, provider_name)
 
     def show_ai_loading(self, question_key: str) -> None:
-        self._game.show_ai_loading(question_key)
+        for view in (self._game, self._find_error):
+            view.show_ai_loading(question_key)
 
     def show_ai_answer(self, question_key: str, text: str) -> None:
-        self._game.show_ai_answer(question_key, text)
+        for view in (self._game, self._find_error):
+            view.show_ai_answer(question_key, text)
 
     def show_ai_error(self, question_key: str, message: str) -> None:
-        self._game.show_ai_error(question_key, message)
+        for view in (self._game, self._find_error):
+            view.show_ai_error(question_key, message)
 
     def set_model(self, model: ProjectModel | None) -> None:
         if model is None:  # cambió el proyecto: la ronda en curso ya no aplica
@@ -87,7 +102,8 @@ class LearnPage(Page):
         self._show(self._select)
 
     def start(self, session: GameSession, scope_label: str | None) -> None:
-        view = self._explain if session.mode.mode_id == EXPLAIN_CODE else self._game
+        views = {EXPLAIN_CODE: self._explain, FIND_ERROR: self._find_error}
+        view = views.get(session.mode.mode_id, self._game)
         view.start(session, scope_label)
         self._show(view)
 
