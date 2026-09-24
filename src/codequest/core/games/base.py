@@ -11,6 +11,7 @@ from codequest.core.questions.models import Question
 
 class Outcome(StrEnum):
     CORRECT = "correct"
+    PARTIAL = "partial"  # respuesta libre: entendió parte de la idea (no cuenta como acierto)
     INCORRECT = "incorrect"
     SKIPPED = "skipped"  # el estudiante pulsó "No sé"
 

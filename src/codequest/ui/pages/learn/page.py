@@ -3,9 +3,12 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
+from codequest.core.ai.explanation_grader import ExplanationFeedback
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.games.base import GameSession
+from codequest.core.games.catalog import EXPLAIN_CODE
 from codequest.ui.pages.base import Page
+from codequest.ui.pages.learn.explain_view import ExplainCodeView
 from codequest.ui.pages.learn.game_view import GameView, SnippetLoader
 from codequest.ui.pages.learn.summary_view import SummaryView
 from codequest.ui.widgets import Card, IconText, ModeGrid, heading, muted, section_title
@@ -19,6 +22,7 @@ class LearnPage(Page):
     explain_requested = Signal(object)  # Evaluation
     answered = Signal(object)  # Evaluation
     round_finished = Signal(object)  # GameSession
+    explanation_submitted = Signal(object, str)  # Question, texto del estudiante
 
     def __init__(self, load_snippet: SnippetLoader, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -47,11 +51,18 @@ class LearnPage(Page):
         self._game.content_changed.connect(self.content_changed)
         self.layout_.addWidget(self._game)
 
+        self._explain = ExplainCodeView(load_snippet)
+        self._explain.finished.connect(self._show_summary)
+        self._explain.answered.connect(self.answered)
+        self._explain.submitted.connect(self.explanation_submitted)
+        self._explain.content_changed.connect(self.content_changed)
+        self.layout_.addWidget(self._explain)
+
         self._summary = SummaryView()
         self._summary.play_again.connect(self.play_again)
         self._summary.go_home.connect(self.go_home)
         self.layout_.addWidget(self._summary)
-        self._views = (self._select, self._game, self._summary)
+        self._views = (self._select, self._game, self._explain, self._summary)
         self._show(self._select)
 
     def set_ai_available(self, available: bool, provider_name: str | None) -> None:
@@ -76,8 +87,20 @@ class LearnPage(Page):
         self._show(self._select)
 
     def start(self, session: GameSession, scope_label: str | None) -> None:
-        self._game.start(session, scope_label)
-        self._show(self._game)
+        view = self._explain if session.mode.mode_id == EXPLAIN_CODE else self._game
+        view.start(session, scope_label)
+        self._show(view)
+
+    # --- "Explícame este código": la evaluación llega desde MainWindow -------------
+
+    def show_grading(self, question_key: str) -> None:
+        self._explain.show_grading(question_key)
+
+    def apply_feedback(self, question_key: str, feedback: ExplanationFeedback) -> None:
+        self._explain.apply_feedback(question_key, feedback)
+
+    def show_grading_error(self, question_key: str, message: str) -> None:
+        self._explain.show_grading_error(question_key, message)
 
     def _show_summary(self, session: GameSession) -> None:
         self._summary.show_session(session)

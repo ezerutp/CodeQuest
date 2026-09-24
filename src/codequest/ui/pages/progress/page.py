@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QVB
 
 from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
+from codequest.core.games.catalog import mode_title
 from codequest.core.persistence.progress import MASTERY_WINDOW, SessionSummary
 from codequest.services.progress_service import ProgressOverview
 from codequest.ui.formatting import inline_code_html, plural, session_date
@@ -139,7 +140,7 @@ class ProgressPage(Page):
             scope = session.scope.rsplit(".", 1)[-1] if session.scope else "Todo el proyecto"
             percent = round(100 * session.correct / session.answered) if session.answered else 0
             grid.addWidget(QLabel(session_date(session.started_at)), row, 0)
-            grid.addWidget(QLabel(f"Alternativas · {scope}"), row, 1)
+            grid.addWidget(QLabel(f"{mode_title(session.mode)} · {scope}"), row, 1)
             result = QLabel(f"{session.correct} de {session.answered} · {percent} %")
             result.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             grid.addWidget(result, row, 2)
