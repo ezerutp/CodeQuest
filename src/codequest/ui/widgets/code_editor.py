@@ -1,9 +1,9 @@
 """Editor de código reutilizable: números de línea, resaltado y modo solo lectura/editable."""
 
 import weakref
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
-from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -67,12 +67,14 @@ class CodeEditor(QPlainTextEdit):
     Todas las APIs públicas usan esa numeración.
     """
 
+    submit_requested = Signal()  # Ctrl+Enter: "Comprobar" sin soltar el teclado
+
     def __init__(self, parent: QWidget | None = None, read_only: bool = True) -> None:
         super().__init__(parent)
         self.setObjectName("CodeEditor")
         self._palette = current_palette()
         self._first_line = 1
-        self._highlighted: set[int] = set()
+        self._highlighted: dict[int, str] = {}  # línea real -> color de fondo
 
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self._highlighter = JavaHighlighter(self.document(), self._palette)
@@ -121,10 +123,18 @@ class CodeEditor(QPlainTextEdit):
 
     def highlight_lines(self, lines: Iterable[int], scroll: bool = True) -> None:
         """Resalta líneas (numeración real del archivo) y opcionalmente las hace visibles."""
-        self._highlighted = set(lines)
+        self.mark_lines(dict.fromkeys(lines, self._palette.editor_highlight_line), scroll=scroll)
+
+    def mark_lines(self, marks: Mapping[int, str], scroll: bool = False) -> None:
+        """Como `highlight_lines`, pero con un color por línea (p. ej. acierto en verde, fallo en rojo)."""
+        self._highlighted = dict(marks)
         self._refresh_selections()
         if scroll and self._highlighted:
             self.scroll_to_line(min(self._highlighted))
+
+    def cursor_line(self) -> int:
+        """Línea (numeración real) donde está el cursor: en solo lectura, la última que se pulsó."""
+        return self.textCursor().blockNumber() + self._first_line
 
     def clear_highlights(self) -> None:
         self.highlight_lines((), scroll=False)
@@ -186,10 +196,10 @@ class CodeEditor(QPlainTextEdit):
 
     def _refresh_selections(self) -> None:
         selections: list[QTextEdit.ExtraSelection] = []
-        for line in sorted(self._highlighted):
+        for line, color in sorted(self._highlighted.items()):
             block = self.document().findBlockByNumber(line - self._first_line)
             if block.isValid():
-                selections.append(self._line_selection(QTextCursor(block), self._palette.editor_highlight_line))
+                selections.append(self._line_selection(QTextCursor(block), color))
         if not self.isReadOnly() and not self._highlighted:
             selections.append(self._line_selection(self.textCursor(), self._palette.editor_current_line))
         self.setExtraSelections(selections)
@@ -207,6 +217,10 @@ class CodeEditor(QPlainTextEdit):
     # --- edición --------------------------------------------------------------------
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        if (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+                and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            self.submit_requested.emit()
+            return
         if self.isReadOnly():
             super().keyPressEvent(event)
             return

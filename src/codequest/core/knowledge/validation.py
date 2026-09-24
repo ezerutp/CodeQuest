@@ -15,11 +15,18 @@ def concept_problems(concept: Concept) -> list[str]:
             problems.append(f"falta el campo '{name}'")
     if not (concept.matches.annotations or concept.matches.supertypes):
         problems.append("'matches' debe indicar al menos una anotación o supertipo")
-    distractors = [d.strip() for d in concept.distractors if d.strip()]
+    problems.extend(answer_problems(concept.summary, concept.distractors))
+    return problems
+
+
+def answer_problems(summary: str, distractors: tuple[str, ...]) -> list[str]:
+    """Reglas de la respuesta correcta frente a sus distractores (conceptos y comparaciones)."""
+    problems: list[str] = []
+    distractors = tuple(d.strip() for d in distractors if d.strip())
     if len(set(distractors)) < MIN_DISTRACTORS:
         problems.append(f"necesita al menos {MIN_DISTRACTORS} distractores distintos")
-    if concept.summary in distractors:
+    if summary in distractors:
         problems.append("la respuesta correcta aparece entre los distractores")
-    if distractors and len(concept.summary) > MAX_SUMMARY_LENGTH_RATIO * max(map(len, distractors)):
+    if distractors and len(summary) > MAX_SUMMARY_LENGTH_RATIO * max(map(len, distractors)):
         problems.append("la respuesta correcta es notablemente más larga que los distractores")
     return problems

@@ -1,5 +1,5 @@
 from codequest.core.games.base import BaseGameMode, Evaluation, Outcome
-from codequest.core.games.catalog import MULTIPLE_CHOICE, TRUE_FALSE
+from codequest.core.games.catalog import COMPARISON, MULTIPLE_CHOICE, TRUE_FALSE
 from codequest.core.questions.models import Question
 
 
@@ -17,3 +17,9 @@ class TrueFalseMode(MultipleChoiceMode):
     """Una afirmación sobre el código: 0 = Verdadero, 1 = Falso. Se evalúa igual que las alternativas."""
 
     mode_id = TRUE_FALSE
+
+
+class ComparisonMode(MultipleChoiceMode):
+    """La diferencia entre lo que usa el código y su alternativa, con 4 opciones."""
+
+    mode_id = COMPARISON

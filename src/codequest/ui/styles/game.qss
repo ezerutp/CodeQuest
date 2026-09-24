@@ -47,6 +47,7 @@ QFrame#Choice[state="incorrect"] #ChoiceText { color: ${text}; }
 
 QFrame#Card[variant="success"] { border-color: ${success}; }
 QFrame#Card[variant="danger"] { border-color: ${danger}; }
+QFrame#Card[variant="partial"] { border-color: ${warning}; }
 QFrame#Card[variant="analogy"] {
     background: ${accent_soft};
     border-color: ${accent_soft};
@@ -61,5 +62,16 @@ QFrame#Card[variant="ai"] {
 #FeedbackTitle[tone="warning"] { color: ${warning}; }
 #FeedbackTitle[tone="info"] { color: ${syntax_annotation}; }
 #FeedbackBody { color: ${text}; font-size: 14px; }
+
+/* Encuentra el error */
+#DiffLine {
+    font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", "DejaVu Sans Mono", monospace;
+    font-size: 13px;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+#DiffLine[tone="added"] { background: ${success_soft}; color: ${text}; border: 1px solid ${success}; }
+#DiffLine[tone="removed"] { background: ${danger_soft}; color: ${text}; border: 1px solid ${danger}; }
+#SelectedLine { color: ${text_muted}; font-size: 13px; }
 
 #ScoreValue { font-size: 44px; font-weight: 800; }

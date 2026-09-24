@@ -15,15 +15,20 @@ class ModeInfo:
 MULTIPLE_CHOICE = "multiple_choice"
 EXPLAIN_CODE = "explain_code"
 TRUE_FALSE = "true_false"
+FIND_ERROR = "find_error"
+FIX_CODE = "fix_code"
+COMPARISON = "comparison"
 
 GAME_MODES: tuple[ModeInfo, ...] = (
     ModeInfo(MULTIPLE_CHOICE, "Alternativas", "Responde preguntas sobre tu propio código.", available=True),
     ModeInfo(TRUE_FALSE, "Verdadero o falso", "Decide si la afirmación sobre tu código es cierta.", available=True),
     ModeInfo(EXPLAIN_CODE, "Explícame este código", "Describe con tus palabras qué hace un fragmento.",
              uses_ai=True, available=True),
-    ModeInfo("find_error", "Encuentra el error", "Descubre el error escondido en código real."),
-    ModeInfo("fix_code", "Corrige el código", "Edita el fragmento hasta que funcione."),
-    ModeInfo("comparison", "Comparaciones", "@Controller vs @RestController, Entity vs DTO…"),
+    ModeInfo(FIND_ERROR, "Encuentra el error", "Descubre la línea que alguien cambió en tu código.",
+             available=True),
+    ModeInfo(FIX_CODE, "Corrige el código", "Edita tu código hasta dejarlo sin el error.", available=True),
+    ModeInfo(COMPARISON, "Comparaciones", "@Controller vs @RestController, Entity vs DTO… en tu código.",
+             available=True),
     ModeInfo("random", "Desafío aleatorio", "No sabes qué ejercicio aparecerá."),
 )
 

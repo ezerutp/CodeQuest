@@ -2,9 +2,9 @@
 
 from urllib.parse import quote_plus
 
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from codequest.core.games.base import Evaluation, Outcome
 from codequest.core.knowledge.models import Concept
@@ -24,10 +24,17 @@ _STATEMENT_TITLES = {
     Outcome.SKIPPED: "La afirmación es {letter}.",
 }
 
+_ERROR_TITLES = {
+    Outcome.CORRECT: "¡Correcto! El error estaba en la línea {line}.",
+    Outcome.INCORRECT: "No exactamente: el error estaba en la línea {line}.",
+    Outcome.SKIPPED: "El error estaba en la línea {line}.",
+}
+
 _TITLES = {
     Outcome.CORRECT: ("¡Correcto!", "success", "correct"),
     Outcome.INCORRECT: ("No exactamente. La respuesta correcta es la {letter}.", "danger", "incorrect"),
     Outcome.SKIPPED: ("La respuesta correcta es la {letter}.", "info", "explain"),
+    Outcome.PARTIAL: ("Casi.", "warning", "warning"),
 }
 
 
@@ -51,6 +58,10 @@ class FeedbackPanel(Card):
         header.addWidget(self._icon)
         header.addWidget(self._title, 1)
         self.body.addLayout(header)
+
+        self._change = self._build_change()
+        self._change.hide()
+        self.body.addWidget(self._change)
 
         self._concept_title = QLabel()
         self._concept_title.setProperty("role", "h2")
@@ -90,7 +101,42 @@ class FeedbackPanel(Card):
         actions.addStretch(1)
         self.body.addLayout(actions)
 
-    def show_evaluation(self, evaluation: Evaluation, correct_letter: str) -> None:
+    def _build_change(self) -> QWidget:
+        """"Encuentra el error": la línea real frente a la modificada y por qué falla."""
+        box = QWidget()
+        grid = QGridLayout(box)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(8)
+        self._original = QLabel()
+        self._mutated = QLabel()
+        for row, (caption, label, tone) in enumerate((("Tu código", self._original, "added"),
+                                                      ("Con el error", self._mutated, "removed"))):
+            title = QLabel(caption)
+            title.setProperty("role", "muted")
+            grid.addWidget(title, row, 0)
+            label.setObjectName("DiffLine")
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            set_style_property(label, "tone", tone)
+            grid.addWidget(label, row, 1)
+        grid.setColumnStretch(1, 1)
+        self._change_explanation = QLabel()
+        self._change_explanation.setObjectName("FeedbackBody")
+        self._change_explanation.setWordWrap(True)
+        self._change_explanation.setTextFormat(Qt.TextFormat.RichText)
+        grid.addWidget(self._change_explanation, 2, 0, 1, 2)
+        return box
+
+    def show_change(self, original: str, mutated: str) -> None:
+        """Muestra la comparación; llamar después de `show_evaluation` con una pregunta con mutación."""
+        self._original.setText(original.strip())
+        self._mutated.setText(mutated.strip())
+        self._change.show()
+
+    def show_evaluation(self, evaluation: Evaluation, correct_letter: str = "",
+                        custom_title: str | None = None) -> None:
+        """`custom_title` sustituye al título por defecto (modos con un resultado más detallado)."""
         concept = evaluation.question.concept
         self._concept = concept
         self._class_name = evaluation.question.class_name
@@ -105,11 +151,18 @@ class FeedbackPanel(Card):
             title = _STATEMENT_TITLES[evaluation.outcome]
             correct_letter = "verdadera" if question.correct_index == 0 else "falsa"
         palette = current_palette()
-        color = {"success": palette.success, "danger": palette.danger, "info": palette.syntax_annotation}[tone]
+        color = {"success": palette.success, "danger": palette.danger, "warning": palette.warning,
+                 "info": palette.syntax_annotation}[tone]
         self._icon.setPixmap(icon(icon_name, color).pixmap(22, 22))
-        self._title.setText(title.format(letter=correct_letter))
+        mutation = question.mutation
+        if mutation is not None:
+            title = _ERROR_TITLES.get(evaluation.outcome, title)
+            self._change_explanation.setText(inline_code_html(mutation.explanation))
+        self._change.hide()
+        self._title.setText(custom_title or title.format(letter=correct_letter, line=mutation.line if mutation else ""))
         set_style_property(self._title, "tone", tone)
-        set_style_property(self, "variant", "success" if tone == "success" else "danger" if tone == "danger" else None)
+        # Solo el borde cambia de color; "warning" es la variante de los avisos, con fondo propio.
+        set_style_property(self, "variant", {"success": "success", "danger": "danger", "warning": "partial"}.get(tone))
 
         self._concept_title.setText(inline_code_html(f"`{concept.title}`"))
         explanation = concept.explanation

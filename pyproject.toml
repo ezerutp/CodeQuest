@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codequest"
-version = "0.2.0"
+version = "0.3.0.dev0"
 description = "Aprende el proyecto que tú mismo construiste."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -13,6 +13,8 @@ dependencies = [
     "platformdirs>=4.2",
     "qtawesome>=1.3",
     "pyyaml>=6.0",
+    "tree-sitter>=0.25",
+    "tree-sitter-java>=0.23",
 ]
 
 [project.optional-dependencies]
@@ -26,7 +28,7 @@ codequest = "codequest.app.application:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-codequest = ["ui/styles/*.qss", "resources/knowledge/*.yaml"]
+codequest = ["ui/styles/*.qss", "resources/knowledge/*.yaml", "resources/comparisons/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

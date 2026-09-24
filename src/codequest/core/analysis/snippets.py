@@ -1,5 +1,6 @@
 """Lectura de fragmentos de código del proyecto. Solo lectura, siempre dentro de la raíz."""
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +25,11 @@ class SnippetRef:
     start_line: int
     end_line: int
     focus_lines: tuple[int, ...] = ()  # líneas a resaltar (numeración del archivo)
+
+    @classmethod
+    def whole_file(cls, file: str) -> "SnippetRef":
+        """El archivo entero: `read_snippet` recorta el final a la última línea."""
+        return cls(file, 1, sys.maxsize)
 
 
 def read_snippet(root: Path, relative_path: str, start_line: int = 1, end_line: int | None = None) -> CodeSnippet:

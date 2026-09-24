@@ -10,7 +10,7 @@ from pathlib import Path
 from codequest.core.analysis.base import FrameworkAnalyzer, SourceParser
 from codequest.core.analysis.java.conventions import JavaConventionsAnalyzer
 from codequest.core.analysis.java.models import JavaClass
-from codequest.core.analysis.java.parser import RegexJavaParser
+from codequest.core.analysis.java.parser import TreeSitterJavaParser
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.snippets import CodeSnippet, SnippetRef, read_snippet
 from codequest.core.analysis.spring.analyzer import SpringBootAnalyzer
@@ -37,7 +37,7 @@ class ProjectService:
     ) -> None:
         self._detector = detector or ProjectDetector()
         self._scanner = scanner or ProjectScanner()
-        self._parsers = tuple(parsers or (RegexJavaParser(),))
+        self._parsers = tuple(parsers or (TreeSitterJavaParser(),))
         # El primero que soporte el proyecto gana; el último debe aceptar cualquiera.
         self._analyzers = tuple(analyzers or (SpringBootAnalyzer(), JavaConventionsAnalyzer()))
 
