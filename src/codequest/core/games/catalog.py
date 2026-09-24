@@ -17,6 +17,7 @@ EXPLAIN_CODE = "explain_code"
 TRUE_FALSE = "true_false"
 FIND_ERROR = "find_error"
 FIX_CODE = "fix_code"
+COMPARISON = "comparison"
 
 GAME_MODES: tuple[ModeInfo, ...] = (
     ModeInfo(MULTIPLE_CHOICE, "Alternativas", "Responde preguntas sobre tu propio código.", available=True),
@@ -26,7 +27,8 @@ GAME_MODES: tuple[ModeInfo, ...] = (
     ModeInfo(FIND_ERROR, "Encuentra el error", "Descubre la línea que alguien cambió en tu código.",
              available=True),
     ModeInfo(FIX_CODE, "Corrige el código", "Edita tu código hasta dejarlo sin el error.", available=True),
-    ModeInfo("comparison", "Comparaciones", "@Controller vs @RestController, Entity vs DTO…"),
+    ModeInfo(COMPARISON, "Comparaciones", "@Controller vs @RestController, Entity vs DTO… en tu código.",
+             available=True),
     ModeInfo("random", "Desafío aleatorio", "No sabes qué ejercicio aparecerá."),
 )
 

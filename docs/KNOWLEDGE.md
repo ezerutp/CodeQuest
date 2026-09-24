@@ -72,3 +72,30 @@ Después del análisis, la página **Conceptos** lista lo que el proyecto usa y 
 sabe explicar. Esos elementos no generan preguntas. Se ignoran las anotaciones del propio
 lenguaje (`@Override`, `@Deprecated`, meta-anotaciones), las anotaciones y tipos definidos en
 el proyecto y los supertipos básicos de Java (`Serializable`, `RuntimeException`…).
+
+## Comparaciones
+
+El modo **Comparaciones** pregunta por la diferencia entre algo que usa el proyecto y su
+alternativa ("¿Qué diferencia a `@RestController` de `@Controller`?"). Son contenido integrado,
+en `src/codequest/resources/comparisons/*.yaml`:
+
+```yaml
+version: 1
+comparisons:
+  - id: compare.rest-controller-vs-controller   # único y estable
+    concept: spring.rest-controller              # concepto ancla: el que usa el proyecto
+    versus: '@Controller'                        # la alternativa, tal como se muestra
+    summary: '@RestController devuelve datos (JSON); @Controller devuelve el nombre de una vista HTML.'
+    explanation: |
+      Párrafos separados por una línea en blanco.
+    analogy: ...
+    distractors: [...]                           # al menos 3, falsos pero verosímiles
+    youtube_query: Spring @Controller vs @RestController
+```
+
+- Solo se pregunta si el proyecto usa el concepto ancla, y el fragmento es ese uso real.
+- `versus` se muestra como código si es una sola palabra o empieza por `@`
+  (`` `@ExceptionHandler` dentro de un controlador ``); si no, como texto ("un DTO").
+- Mismas reglas de calidad que los conceptos para `summary` y `distractors`. Además, los tests
+  exigen que la respuesta correcta no sea la más larga de las cuatro.
+- Acertar una comparación cuenta para el dominio del concepto ancla.

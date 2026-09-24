@@ -1,0 +1,289 @@
+# Comparaciones entre conceptos parecidos. Formato: docs/KNOWLEDGE.md (sección "Comparaciones")
+# `concept` es el que usa el proyecto (ancla la pregunta a su código); `versus`, la alternativa.
+
+version: 1
+comparisons:
+- id: compare.rest-controller-vs-controller
+  concept: spring.rest-controller
+  versus: '@Controller'
+  summary: '@RestController devuelve datos (JSON); @Controller devuelve el nombre de una vista HTML.'
+  explanation: |
+    Los dos marcan la clase como controlador web: Spring les envía las peticiones HTTP que coinciden con sus rutas. La diferencia está en qué hacen con lo que devuelve cada método.
+
+    @RestController es @Controller + @ResponseBody: el objeto devuelto se convierte en el cuerpo de la respuesta, normalmente JSON. Con @Controller, un String como "home" se interpreta como el nombre de una plantilla (Thymeleaf, JSP…) que genera el HTML. Para una API REST, @RestController; para páginas web renderizadas en el servidor, @Controller.
+  analogy: 'Uno te entrega el pedido en una bolsa para llevar (JSON); el otro te sienta a la mesa con el plato ya servido (la página HTML).'
+  distractors:
+  - '@RestController solo acepta peticiones GET; @Controller acepta cualquier método HTTP que llegue.'
+  - '@RestController guarda sus respuestas en caché; @Controller las vuelve a calcular en cada petición.'
+  - '@RestController se usa en microservicios; @Controller solo funciona en aplicaciones sin Spring Boot.'
+  youtube_query: Spring @Controller vs @RestController diferencia
+
+- id: compare.controller-vs-rest-controller
+  concept: spring.controller
+  versus: '@RestController'
+  summary: '@Controller devuelve el nombre de una vista HTML; @RestController convierte lo que devuelves en JSON.'
+  explanation: |
+    Con @Controller, un método que devuelve "home" hace que Spring busque la plantilla home (Thymeleaf, JSP…) y genere la página HTML. Es el estilo de las aplicaciones web clásicas.
+
+    @RestController añade @ResponseBody a todos los métodos: lo que devuelven se escribe tal cual en la respuesta, normalmente como JSON. Si en un @Controller necesitas devolver datos en un método concreto, puedes anotar solo ese método con @ResponseBody.
+  analogy: 'Un camarero que te sirve el plato en la mesa (HTML) frente a uno que te lo da para llevar (JSON).'
+  distractors:
+  - '@Controller no puede recibir parámetros en la URL; @RestController sí puede leerlos con @PathVariable.'
+  - '@Controller crea una instancia por petición; @RestController comparte una sola instancia en toda la app.'
+  - '@Controller solo funciona con formularios POST; @RestController funciona con cualquier método HTTP.'
+  youtube_query: Spring @Controller vs @RestController diferencia
+
+- id: compare.path-variable-vs-request-param
+  concept: spring.path-variable
+  versus: '@RequestParam'
+  summary: '@PathVariable lee un trozo de la ruta (/users/42); @RequestParam lee un parámetro tras el ? (?page=2).'
+  explanation: |
+    Los dos llevan un valor de la URL a un parámetro del método, pero de sitios distintos. @PathVariable toma un segmento de la propia ruta, declarado con llaves en el mapping: en /users/{id}, la petición /users/42 da id = 42.
+
+    @RequestParam toma los parámetros de consulta que van después del ?, como /users?page=2&size=10. Por convención, la ruta identifica el recurso (qué usuario) y los parámetros de consulta lo filtran, ordenan o paginan.
+  analogy: 'La ruta es la dirección de la casa (calle y número); los parámetros tras el ? son las instrucciones para el repartidor (déjalo en portería).'
+  distractors:
+  - '@PathVariable lee el cuerpo JSON de la petición; @RequestParam lee las cabeceras HTTP que envía el cliente.'
+  - '@PathVariable solo acepta números; @RequestParam acepta cualquier tipo de texto que llegue en la URL.'
+  - '@PathVariable es obligatorio en peticiones GET; @RequestParam solo puede usarse en peticiones POST.'
+  youtube_query: Spring @PathVariable vs @RequestParam
+
+- id: compare.request-param-vs-path-variable
+  concept: spring.request-param
+  versus: '@PathVariable'
+  summary: '@RequestParam lee un parámetro tras el ? (?page=2); @PathVariable lee un trozo de la ruta (/users/42).'
+  explanation: |
+    @RequestParam toma los parámetros de consulta que van después del ?: en /users?page=2, page vale 2. Pueden ser opcionales (required = false) o tener un valor por defecto (defaultValue), algo típico en filtros y paginación.
+
+    @PathVariable toma un segmento de la ruta declarado con llaves: en /users/{id}, la petición /users/42 da id = 42. Suele identificar el recurso concreto, mientras que @RequestParam lo filtra o lo ordena.
+  analogy: 'La ruta es la dirección de la casa; los parámetros tras el ? son las notas para el repartidor.'
+  distractors:
+  - '@RequestParam lee el cuerpo JSON de la petición; @PathVariable lee las cabeceras que envía el navegador.'
+  - '@RequestParam solo funciona en formularios HTML; @PathVariable solo funciona en peticiones desde JavaScript.'
+  - '@RequestParam guarda el valor en la sesión del usuario; @PathVariable lo guarda en una cookie del navegador.'
+  youtube_query: Spring @RequestParam vs @PathVariable
+
+- id: compare.request-body-vs-request-param
+  concept: spring.request-body
+  versus: '@RequestParam'
+  summary: '@RequestBody convierte el cuerpo JSON en un objeto; @RequestParam lee un valor suelto de la URL.'
+  explanation: |
+    @RequestBody toma el cuerpo completo de la petición (normalmente JSON) y lo convierte en un objeto Java, como un DTO con varios campos. Es lo habitual al crear o actualizar recursos con POST o PUT.
+
+    @RequestParam lee un único valor de los parámetros de consulta (?page=2) o de un formulario. Sirve para datos pequeños y simples; para un objeto con varios campos, el cuerpo JSON y @RequestBody son la opción natural.
+  analogy: 'El cuerpo es el paquete con todo lo que envías; los parámetros de la URL son las etiquetas pegadas por fuera.'
+  distractors:
+  - '@RequestBody lee las cabeceras de la petición; @RequestParam lee las cookies que guarda el navegador.'
+  - '@RequestBody solo acepta texto plano; @RequestParam es el único que puede convertir JSON en un objeto.'
+  - '@RequestBody se usa solo en peticiones GET; @RequestParam solo en peticiones POST con formularios.'
+  youtube_query: Spring @RequestBody vs @RequestParam
+
+- id: compare.entity-vs-dto
+  concept: jpa.entity
+  versus: un DTO
+  summary: 'Una entidad es una tabla que gestiona JPA; un DTO solo transporta datos hacia o desde la API.'
+  explanation: |
+    Una @Entity está conectada a la base de datos: JPA la guarda, la carga y vigila sus cambios, y puede tener relaciones con otras entidades que se cargan bajo demanda.
+
+    Un DTO (Data Transfer Object, a menudo un record) es una caja simple con los datos que quieres enviar o recibir por la API. Separarlos evita exponer campos internos (contraseñas, relaciones enteras), permite cambiar la base de datos sin romper la API y evita errores de carga perezosa al convertir a JSON.
+  analogy: 'La entidad es la ficha original guardada en el archivo; el DTO es la fotocopia con solo los datos que le das al cliente.'
+  distractors:
+  - 'Una entidad solo existe en los tests; un DTO es lo que se guarda realmente en la base de datos.'
+  - 'Una entidad es inmutable y no tiene campos; un DTO contiene la lógica de negocio de la aplicación.'
+  - 'Una entidad se envía directamente al navegador; un DTO solo se usa dentro de las consultas SQL.'
+  youtube_query: Entity vs DTO Spring Boot
+
+- id: compare.service-vs-component
+  concept: spring.service
+  versus: '@Component'
+  summary: 'Técnicamente son iguales (@Service es un @Component); @Service solo indica que la clase tiene lógica de negocio.'
+  explanation: |
+    @Service está anotada con @Component: Spring registra la clase como bean exactamente igual en los dos casos, y puedes inyectarla donde la necesites.
+
+    La diferencia es de intención. @Service dice a quien lee el código que ahí está la lógica de negocio, entre los controladores y los repositorios. @Component es el estereotipo genérico para cualquier otro bean (utilidades, adaptadores…).
+  analogy: 'Es como la etiqueta de un cajón: el contenido se guarda igual, pero la etiqueta te dice qué vas a encontrar dentro.'
+  distractors:
+  - '@Service hace que todos sus métodos sean transaccionales; @Component nunca abre ninguna transacción al ejecutarse.'
+  - '@Service crea una instancia nueva en cada petición HTTP; @Component comparte una sola instancia en toda la app.'
+  - '@Service solo puede inyectarse en controladores; @Component puede inyectarse en cualquier otra clase del proyecto.'
+  youtube_query: Spring @Service vs @Component
+
+- id: compare.component-vs-service
+  concept: spring.component
+  versus: '@Service'
+  summary: 'Spring los registra igual (@Service es un @Component); @Service solo indica que ahí hay lógica de negocio.'
+  explanation: |
+    Los dos convierten la clase en un bean que Spring crea al arrancar e inyecta donde se necesite. De hecho, @Service está anotada con @Component.
+
+    Se usa @Service para la capa de lógica de negocio y @Component para beans que no encajan en ninguna capa concreta: utilidades, conversores, listeners… Elegir bien el estereotipo hace el código más fácil de leer.
+  analogy: 'Dos cajones iguales con distinta etiqueta: la etiqueta no cambia lo que cabe, pero te ayuda a encontrarlo.'
+  distractors:
+  - '@Component no puede inyectarse con el constructor; @Service es el único que admite inyección de dependencias.'
+  - '@Component se ejecuta en un hilo aparte; @Service siempre se ejecuta en el hilo de la petición HTTP.'
+  - '@Component solo existe en los tests; @Service es la única forma de registrar un bean en producción.'
+  youtube_query: Spring @Component vs @Service
+
+- id: compare.jpa-repository-vs-crud-repository
+  concept: data.jpa-repository
+  versus: CrudRepository
+  summary: 'JpaRepository hereda de CrudRepository y añade paginación, ordenación y métodos propios de JPA como flush.'
+  explanation: |
+    CrudRepository define las operaciones básicas: save, findById, findAll, delete, count… JpaRepository la extiende (a través de ListCrudRepository y PagingAndSortingRepository), así que tiene todo eso y más.
+
+    Lo que añade: findAll con Sort o Pageable para ordenar y paginar, devolver List en vez de Iterable, y operaciones propias de JPA como flush o saveAndFlush. Si usas JPA, JpaRepository es la opción habitual; CrudRepository sirve si quieres una interfaz mínima.
+  analogy: 'CrudRepository es la navaja básica; JpaRepository es la navaja suiza que incluye esa misma hoja y más herramientas.'
+  distractors:
+  - 'JpaRepository escribe las consultas en SQL nativo; CrudRepository no puede leer nada de la base de datos.'
+  - 'JpaRepository solo funciona con bases de datos en memoria; CrudRepository funciona con cualquier base real.'
+  - 'JpaRepository necesita que escribas la implementación; CrudRepository la genera Spring automáticamente.'
+  youtube_query: JpaRepository vs CrudRepository
+
+- id: compare.crud-repository-vs-jpa-repository
+  concept: data.crud-repository
+  versus: JpaRepository
+  summary: 'CrudRepository tiene lo básico; JpaRepository hereda de ella y añade paginación y métodos de JPA.'
+  explanation: |
+    CrudRepository define lo esencial para guardar, buscar y borrar: save, findById, findAll, delete, count. Spring Data genera la implementación por ti.
+
+    JpaRepository la extiende: además permite ordenar y paginar (Sort, Pageable), devuelve List en vez de Iterable y ofrece operaciones de JPA como flush. Cambiar de una a otra no rompe nada de lo que ya usas, porque JpaRepository incluye todos los métodos de CrudRepository.
+  analogy: 'La navaja básica frente a la navaja suiza: la suiza incluye la misma hoja y más herramientas.'
+  distractors:
+  - 'CrudRepository guarda los datos en memoria; JpaRepository es el único que los escribe en la base de datos.'
+  - 'CrudRepository solo permite leer datos; JpaRepository es el único que puede guardarlos o borrarlos.'
+  - 'CrudRepository necesita consultas escritas a mano; JpaRepository no admite consultas personalizadas.'
+  youtube_query: CrudRepository vs JpaRepository
+
+- id: compare.one-to-many-vs-many-to-one
+  concept: jpa.one-to-many
+  versus: '@ManyToOne'
+  summary: 'Son los dos lados de una relación: @OneToMany es la colección y @ManyToOne tiene la clave foránea.'
+  explanation: |
+    En "un usuario tiene muchos pedidos", Order tiene un campo User user con @ManyToOne (muchos pedidos apuntan a un usuario) y User tiene List<Order> orders con @OneToMany.
+
+    La columna user_id vive en la tabla de pedidos, así que el lado @ManyToOne es el dueño de la relación. El lado @OneToMany suele llevar mappedBy = "user" para indicar que solo refleja esa misma relación y no crea otra.
+  analogy: 'Un profesor tiene muchos alumnos (@OneToMany) y cada alumno tiene anotado un único profesor (@ManyToOne): es la misma relación vista desde cada lado.'
+  distractors:
+  - '@OneToMany crea una tabla nueva por cada elemento; @ManyToOne borra los registros que ya no se usan.'
+  - '@OneToMany solo sirve para enums; @ManyToOne es la única forma de guardar una lista de entidades.'
+  - '@OneToMany carga los datos desde un archivo; @ManyToOne los carga desde una API externa al arrancar.'
+  youtube_query: JPA OneToMany vs ManyToOne
+
+- id: compare.many-to-one-vs-one-to-many
+  concept: jpa.many-to-one
+  versus: '@OneToMany'
+  summary: 'Son los dos lados de una relación: @ManyToOne tiene la clave foránea y @OneToMany es la colección.'
+  explanation: |
+    @ManyToOne va en el lado "muchos": en Order, el campo User user indica que muchos pedidos apuntan a un mismo usuario. Su tabla guarda la clave foránea (user_id), por eso es el dueño de la relación.
+
+    @OneToMany es opcional y va en el otro lado: List<Order> orders en User, normalmente con mappedBy = "user". Te deja navegar del usuario a sus pedidos sin crear una segunda relación.
+  analogy: 'Cada alumno anota el nombre de su profesor (@ManyToOne); la lista de clase del profesor (@OneToMany) es la misma información vista desde el otro lado.'
+  distractors:
+  - '@ManyToOne guarda una copia completa del otro objeto; @OneToMany solo guarda los nombres de los campos.'
+  - '@ManyToOne solo se usa en DTOs; @OneToMany es la única anotación que JPA reconoce en una entidad.'
+  - '@ManyToOne bloquea la tabla mientras se lee; @OneToMany permite leerla desde varios hilos a la vez.'
+  youtube_query: JPA ManyToOne vs OneToMany
+
+- id: compare.get-mapping-vs-post-mapping
+  concept: spring.get-mapping
+  versus: '@PostMapping'
+  summary: '@GetMapping consulta datos sin cambiar nada; @PostMapping envía datos para crear algo nuevo.'
+  explanation: |
+    GET pide información: no debe modificar nada, se puede repetir sin efectos y el navegador o un proxy pueden guardarlo en caché. Los datos van en la URL (ruta o parámetros tras el ?).
+
+    POST envía datos para que el servidor haga algo con ellos, típicamente crear un recurso. Los datos viajan en el cuerpo (normalmente JSON con @RequestBody) y repetir la petición puede crear duplicados.
+  analogy: 'GET es mirar el menú; POST es hacer el pedido: mirar no cambia nada, pedir dos veces te trae dos platos.'
+  distractors:
+  - '@GetMapping es más seguro porque cifra los datos; @PostMapping los envía siempre sin ningún cifrado.'
+  - '@GetMapping solo devuelve HTML; @PostMapping es el único que puede devolver una respuesta en JSON.'
+  - '@GetMapping funciona solo con navegadores; @PostMapping funciona solo con aplicaciones móviles.'
+  youtube_query: GET vs POST HTTP Spring Boot
+
+- id: compare.post-mapping-vs-put-mapping
+  concept: spring.post-mapping
+  versus: '@PutMapping'
+  summary: '@PostMapping suele crear un recurso nuevo; @PutMapping reemplaza uno existente (repetirlo no cambia nada).'
+  explanation: |
+    POST normalmente crea: enviar dos veces el mismo POST a /users crea dos usuarios. El servidor decide el identificador del nuevo recurso.
+
+    PUT actualiza un recurso que ya conoces, como /users/42, enviando su versión completa. Es idempotente: repetirlo deja el recurso igual que tras la primera vez. Para cambiar solo algunos campos existe PATCH.
+  analogy: 'POST es entregar un formulario nuevo en ventanilla; PUT es sustituir tu formulario ya archivado por una versión corregida.'
+  distractors:
+  - '@PostMapping solo acepta texto plano; @PutMapping es el único que puede recibir un cuerpo en formato JSON.'
+  - '@PostMapping se usa para borrar recursos; @PutMapping para consultarlos sin modificar ningún dato.'
+  - '@PostMapping necesita autenticación siempre; @PutMapping funciona sin que el usuario inicie sesión.'
+  youtube_query: POST vs PUT REST Spring Boot
+
+- id: compare.put-mapping-vs-patch-mapping
+  concept: spring.put-mapping
+  versus: '@PatchMapping'
+  summary: '@PutMapping reemplaza el recurso completo; @PatchMapping cambia solo los campos que envías.'
+  explanation: |
+    Con PUT envías la versión completa del recurso y sustituye a la anterior: un campo que no envíes puede quedar vacío.
+
+    Con PATCH envías solo lo que cambia, por ejemplo {"name": "Ana"}, y el resto se conserva. PATCH es más cómodo para ediciones pequeñas, pero tu código debe decidir cómo aplicar esos cambios parciales.
+  analogy: 'PUT es reimprimir la ficha entera con los datos nuevos; PATCH es corregir con típex solo la línea que cambió.'
+  distractors:
+  - '@PutMapping crea recursos nuevos; @PatchMapping es el único método que puede eliminarlos de la base.'
+  - '@PutMapping solo funciona con formularios HTML; @PatchMapping solo con aplicaciones de escritorio.'
+  - '@PutMapping guarda los datos en caché; @PatchMapping los escribe directamente en el disco del cliente.'
+  youtube_query: PUT vs PATCH REST
+
+- id: compare.autowired-vs-constructor
+  concept: spring.autowired
+  versus: la inyección por constructor
+  summary: 'Ambas inyectan el bean; por constructor el campo puede ser final y la clase es más fácil de testear.'
+  explanation: |
+    @Autowired en un campo hace que Spring rellene ese campo después de crear el objeto. Funciona, pero la dependencia queda escondida y el campo no puede ser final.
+
+    Con la inyección por constructor, Spring pasa las dependencias al crear el objeto (si solo hay un constructor, no hace falta @Autowired). Así el objeto nunca existe a medias, los campos pueden ser final y en un test basta con llamar a new pasando dobles de prueba.
+  analogy: 'Inyectar por campo es recibir las herramientas cuando ya empezaste el trabajo; por constructor, te las entregan todas antes de empezar.'
+  distractors:
+  - 'Solo @Autowired en un campo crea un bean; el constructor obliga a crear los objetos a mano con new en cada clase.'
+  - 'Con @Autowired el bean es único; por constructor Spring crea una instancia nueva en cada llamada a un método.'
+  - 'Con @Autowired funciona en producción; la inyección por constructor solo está disponible en los tests.'
+  youtube_query: Spring Autowired field vs constructor injection
+
+- id: compare.bean-vs-component
+  concept: spring.bean
+  versus: '@Component'
+  summary: '@Bean registra lo que devuelve un método de configuración; @Component registra la propia clase anotada.'
+  explanation: |
+    @Component va sobre una clase tuya: Spring la encuentra al escanear los paquetes y crea la instancia él mismo.
+
+    @Bean va sobre un método dentro de una clase @Configuration: tú creas y configuras el objeto, y Spring registra lo que devuelves. Es la opción para clases que no son tuyas (una librería, como un PasswordEncoder) o que necesitan una configuración especial al crearse.
+  analogy: '@Component es poner tu nombre en la lista y que te llamen; @Bean es que alguien de confianza te presente y responda por ti.'
+  distractors:
+  - '@Bean solo existe en los tests; @Component es la única forma de registrar objetos en una aplicación real.'
+  - '@Bean crea una instancia nueva cada vez que se inyecta; @Component nunca permite más de un uso por petición.'
+  - '@Bean convierte el método en una ruta HTTP; @Component convierte la clase en una tabla de la base de datos.'
+  youtube_query: Spring @Bean vs @Component
+
+- id: compare.controller-advice-vs-exception-handler
+  concept: errors.controller-advice
+  versus: '@ExceptionHandler dentro de un controlador'
+  summary: '@ControllerAdvice maneja errores de todos los controladores; un @ExceptionHandler local, solo de ese.'
+  explanation: |
+    Un método @ExceptionHandler dentro de un controlador solo atiende las excepciones que lanzan los métodos de ese controlador.
+
+    Una clase @ControllerAdvice (o @RestControllerAdvice) reúne esos manejadores y los aplica a toda la aplicación. Así cada tipo de error se responde igual en todas partes y los controladores quedan limpios.
+  analogy: 'Un @ExceptionHandler local es el botiquín de una oficina; @ControllerAdvice es la enfermería del edificio entero.'
+  distractors:
+  - '@ControllerAdvice evita que se lancen excepciones; un @ExceptionHandler local las guarda en un archivo de log.'
+  - '@ControllerAdvice solo maneja errores de la base de datos; un @ExceptionHandler local, solo los de validación.'
+  - '@ControllerAdvice reinicia la aplicación tras un error; un @ExceptionHandler local la detiene por completo.'
+  youtube_query: Spring ControllerAdvice vs ExceptionHandler
+
+- id: compare.not-blank-vs-not-null
+  concept: validation.not-blank
+  versus: '@NotNull'
+  summary: '@NotBlank rechaza null, texto vacío y solo espacios; @NotNull solo rechaza null y acepta "" o "   ".'
+  explanation: |
+    @NotNull solo comprueba que el valor exista: un String vacío "" o con espacios "   " lo cumple. Sirve para cualquier tipo (números, fechas, objetos).
+
+    @NotBlank es para textos: además de null, rechaza "" y los que solo tienen espacios. Para un nombre o un email obligatorio, @NotBlank es lo que realmente quieres. Entre los dos está @NotEmpty, que rechaza null y "" pero acepta espacios.
+  analogy: '@NotNull comprueba que te entregaron un sobre; @NotBlank, además, que el sobre tenga algo escrito dentro.'
+  distractors:
+  - '@NotBlank solo funciona con números; @NotNull es la única validación que se puede aplicar a un texto.'
+  - '@NotBlank valida en la base de datos; @NotNull valida en el navegador antes de enviar el formulario.'
+  - '@NotBlank convierte el texto a mayúsculas; @NotNull elimina los espacios del principio y del final.'
+  youtube_query: NotBlank vs NotNull vs NotEmpty
