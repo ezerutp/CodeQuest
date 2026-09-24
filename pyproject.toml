@@ -28,7 +28,7 @@ codequest = "codequest.app.application:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-codequest = ["ui/styles/*.qss", "resources/knowledge/*.yaml"]
+codequest = ["ui/styles/*.qss", "resources/knowledge/*.yaml", "resources/comparisons/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

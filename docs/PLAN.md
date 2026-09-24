@@ -219,6 +219,12 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     *casi* (`PARTIAL`: arregló la línea pero cambió otras cosas); error de sintaxis (con su línea
     real); o el error sigue. Comparar con el código original es a propósito: es el código real del
     estudiante, no una solución inventada.
+32. **Comparaciones (GCQ-19).** Contenido propio en `resources/comparisons/` (no en la KB de
+    conceptos, para no competir por las mismas anotaciones): cada comparación se ancla a un
+    concepto que el proyecto usa y lo contrasta con su alternativa. `ComparisonRule` reutiliza las
+    reglas de Alternativas para encontrar el uso real y hace una pregunta por comparación y clase.
+    La pregunta lleva el concepto ancla con el contenido de la comparación (`as_concept`): así el
+    acierto cuenta para ese concepto y el modo se juega en la vista de Alternativas sin UI nueva.
 
 ### Seguridad sobre el repositorio
 
@@ -271,7 +277,7 @@ Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo
 
 ### v0.3 — “Juego de verdad”
 
-Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores dentro de métodos (GCQ-17) · ✅ Corrige el código (GCQ-18) · ⏳ Comparaciones.
+Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores dentro de métodos (GCQ-17) · ✅ Corrige el código (GCQ-18) · ✅ Comparaciones (GCQ-19). **v0.3 completo.**
 - Modos **Encuentra el error** (mutaciones y evaluación locales) y **Corrige el código**.
 - Modo **Comparaciones** basado en tecnologías detectadas.
 
@@ -369,7 +375,7 @@ Cambios respecto a la propuesta original y por qué:
 | Clase | Responsabilidad |
 |-------|-----------------|
 | `BaseGameMode` (ABC) | `id`, `title`, `requires_ai`, `next_exercise()`, `evaluate(answer) -> Evaluation`. |
-| `MultipleChoiceMode`, `TrueFalseMode`, `ExplainCodeMode`, `FindErrorMode`, `FixCodeMode` | Implementaciones concretas. `FixCodeMode` evalúa con `analysis/java/syntax.py` (tokens y errores de sintaxis). |
+| `MultipleChoiceMode`, `TrueFalseMode`, `ComparisonMode`, `ExplainCodeMode`, `FindErrorMode`, `FixCodeMode` | Implementaciones concretas. `FixCodeMode` evalúa con `analysis/java/syntax.py` (tokens y errores de sintaxis). |
 | `Evaluation` | Resultado: correcto/parcial/incorrecto, feedback, conceptos afectados, si usó IA. |
 | `GameSession` | Una partida: modo, ejercicios y resultados. Emite eventos para persistir. |
 

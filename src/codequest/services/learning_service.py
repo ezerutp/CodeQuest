@@ -5,20 +5,21 @@ from collections.abc import Mapping
 
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.games.base import BaseGameMode, GameSession
-from codequest.core.games.catalog import EXPLAIN_CODE, FIND_ERROR, FIX_CODE, MULTIPLE_CHOICE, TRUE_FALSE
+from codequest.core.games.catalog import COMPARISON, EXPLAIN_CODE, FIND_ERROR, FIX_CODE, MULTIPLE_CHOICE, TRUE_FALSE
 from codequest.core.games.explain_code import ExplainCodeMode
 from codequest.core.games.find_error import FindErrorMode
 from codequest.core.games.fix_code import FixCodeMode
-from codequest.core.games.multiple_choice import MultipleChoiceMode, TrueFalseMode
+from codequest.core.games.multiple_choice import ComparisonMode, MultipleChoiceMode, TrueFalseMode
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.coverage import KnowledgeReport, build_report
+from codequest.core.questions.comparisons import COMPARISON_RULES
 from codequest.core.questions.generator import ChoiceStyle, QuestionGenerator
 from codequest.core.questions.mutations import FIND_ERROR_RULES, FIX_CODE_RULES
 from codequest.core.questions.rules import EXPLAIN_RULES
 
 ROUND_SIZE = 10
 # Escribir o leer un fragmento entero cuesta más que elegir: rondas más cortas.
-ROUND_SIZES = {EXPLAIN_CODE: 5, FIND_ERROR: 6, FIX_CODE: 5}
+ROUND_SIZES = {EXPLAIN_CODE: 5, FIND_ERROR: 6, FIX_CODE: 5, COMPARISON: 8}
 
 
 class LearningService:
@@ -31,11 +32,12 @@ class LearningService:
             TRUE_FALSE: QuestionGenerator(self.kb, style=ChoiceStyle.TRUE_FALSE),
             FIND_ERROR: QuestionGenerator(self.kb, FIND_ERROR_RULES, style=ChoiceStyle.NONE),
             FIX_CODE: QuestionGenerator(self.kb, FIX_CODE_RULES, style=ChoiceStyle.NONE),
+            COMPARISON: QuestionGenerator(self.kb, COMPARISON_RULES),
         }
         self._rng = rng or random.Random()
         self._modes: dict[str, BaseGameMode] = {
             MULTIPLE_CHOICE: MultipleChoiceMode(), TRUE_FALSE: TrueFalseMode(), EXPLAIN_CODE: ExplainCodeMode(),
-            FIND_ERROR: FindErrorMode(), FIX_CODE: FixCodeMode(),
+            FIND_ERROR: FindErrorMode(), FIX_CODE: FixCodeMode(), COMPARISON: ComparisonMode(),
         }
 
     def knowledge_report(self, model: ProjectModel) -> KnowledgeReport:
