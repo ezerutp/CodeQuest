@@ -31,12 +31,14 @@ class LearningService:
     def start_session(self, model: ProjectModel, mode_id: str = MULTIPLE_CHOICE,
                       class_name: str | None = None, size: int = ROUND_SIZE,
                       priorities: Mapping[str, float] | None = None,
-                      avoid_keys: frozenset[str] = frozenset()) -> GameSession:
+                      avoid_keys: frozenset[str] = frozenset(),
+                      concept_ids: frozenset[str] | None = None) -> GameSession:
         """Nueva ronda. Puede no tener preguntas (p. ej. una clase sin anotaciones conocidas).
 
         Con historial, `priorities` pone primero lo que cuesta y `avoid_keys` evita repetir lo reciente.
         """
         mode = self._modes[mode_id]
         questions = self._generator.generate(model, limit=size, class_name=class_name, rng=self._rng,
-                                             priorities=priorities, avoid_keys=avoid_keys)
+                                             priorities=priorities, avoid_keys=avoid_keys,
+                                             concept_ids=concept_ids)
         return GameSession(mode=mode, questions=questions, scope=class_name)

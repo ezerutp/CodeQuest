@@ -238,3 +238,45 @@ def test_service_without_database() -> None:
     progress.open_project(INFO)
     progress.record(_eval("jpa.entity", C))
     assert not progress.available and progress.error == "sin permisos"
+
+
+# --- GCQ-10: historial y progreso por tema ----------------------------------------------
+
+def test_recent_sessions_only_counts_sessions_with_answers(repo: ProgressRepository) -> None:
+    pid = _play(repo, [("spring.transactional", C), ("jpa.entity", X)])
+    repo.start_session(pid, "multiple_choice", "app.C", 5)  # ronda abandonada sin respuestas
+    session = repo.start_session(pid, "multiple_choice", "app.User", 2)
+    repo.record_attempt(pid, session, _eval("jpa.id", C))
+
+    sessions = repo.recent_sessions(pid)
+
+    assert [(s.scope, s.answered, s.correct) for s in sessions] == [("app.User", 1, 1), (None, 2, 1)]
+
+
+def test_overview_groups_mastery_by_topic_weakest_first(shop_project: Path) -> None:
+    service = ProjectService()
+    model = service.analyze(service.detect(shop_project))
+    report = build_report(model, KB)
+    progress = ProgressService(ProgressRepository(Database(":memory:"), clock=Clock()))
+    progress.open_project(model.info)
+    progress.start(_game("spring.transactional"))
+    for _ in range(3):
+        progress.record(_eval("spring.transactional", C))
+
+    topics = {t.topic.value: t for t in progress.overview(report).topics}
+
+    transactions = topics["transactions"]
+    assert (transactions.percent, transactions.mastered, transactions.total) == (100, 1, 1)
+    assert topics["web"].percent == 0 and topics["web"].total > 1
+    ordered = [t.percent for t in progress.overview(report).topics]
+    assert ordered == sorted(ordered)
+
+
+def test_generator_can_restrict_to_review_concepts(shop_project: Path) -> None:
+    service = ProjectService()
+    model = service.analyze(service.detect(shop_project))
+    review = frozenset({"spring.path-variable", "jpa.entity"})
+
+    questions = QuestionGenerator(KB).generate(model, limit=20, rng=random.Random(1), concept_ids=review)
+
+    assert questions and {q.concept.id for q in questions} <= review

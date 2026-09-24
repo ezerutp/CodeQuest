@@ -25,3 +25,20 @@ QFrame#Card[interactive="true"]:enabled:hover {
 
 #ModeTitle { font-size: 15px; font-weight: 600; }
 #ModeDescription { color: ${text_muted}; font-size: 13px; }
+
+/* Medidores (widgets/meter.py) y cifra principal */
+QProgressBar#Meter {
+    background: ${accent_soft};
+    border: none;
+    border-radius: 4px;
+    min-height: 8px;
+    max-height: 8px;
+}
+QProgressBar#Meter::chunk {
+    background: ${accent};
+    border-radius: 4px;
+}
+#MeterLabel { font-size: 14px; }
+#MeterValue { font-size: 14px; font-weight: 600; }
+#HeroValue { font-size: 52px; font-weight: 800; }
+#TableHeader { color: ${text_subtle}; font-size: 11px; font-weight: 700; }
