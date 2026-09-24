@@ -31,6 +31,21 @@ tu proyecto nunca se modifica.
 
 ## Instalación
 
+Para usar CodeQuest como un programa más (Linux y macOS):
+
+```bash
+git clone https://github.com/ezerutp/CodeQuest.git
+cd CodeQuest
+./install.sh          # o ./install.sh --ai para las funciones con IA
+```
+
+El script crea un entorno propio en `~/.local/lib/codequest` y deja el comando `codequest` en
+`~/.local/bin`, así que no hace falta activar ningún entorno virtual. Para actualizar, `git pull`
+y vuelve a ejecutar `./install.sh`. Para quitarlo, `./install.sh --uninstall`: tu progreso y tus
+conceptos se conservan.
+
+### Para desarrollar
+
 ```bash
 cd /ruta/CodeQuest
 python -m venv .venv
@@ -59,7 +74,7 @@ python /ruta/CodeQuest/main.py
 CodeQuest funciona completo sin IA. Para activar las funciones con Claude:
 
 ```bash
-pip install -e ".[ai]"
+pip install -e ".[ai]"               # o, si usas el instalador: ./install.sh --ai
 export ANTHROPIC_API_KEY=...          # nunca se guarda ni se registra
 export CODEQUEST_AI_MODEL=...         # opcional; por defecto claude-opus-5
 ```
