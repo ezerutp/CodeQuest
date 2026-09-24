@@ -47,6 +47,7 @@ QFrame#Choice[state="incorrect"] #ChoiceText { color: ${text}; }
 
 QFrame#Card[variant="success"] { border-color: ${success}; }
 QFrame#Card[variant="danger"] { border-color: ${danger}; }
+QFrame#Card[variant="partial"] { border-color: ${warning}; }
 QFrame#Card[variant="analogy"] {
     background: ${accent_soft};
     border-color: ${accent_soft};

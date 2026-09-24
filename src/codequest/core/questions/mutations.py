@@ -9,7 +9,7 @@ por qué, en ese contexto, el resultado es un error. Las posiciones exactas vien
 import re
 from collections import Counter
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from codequest.core.analysis.java.conventions import simple_type_name
 from codequest.core.analysis.java.models import JavaAnnotation, JavaClass, JavaMethod, MethodCall, SourceSpan
@@ -23,6 +23,7 @@ from codequest.core.questions.models import CodeMutation, QuestionDraft
 from codequest.core.questions.rules import MAX_HEADER_LINES, MAX_METHOD_LINES, QuestionRule
 
 PROMPT = "Hay algo extraño en este código. ¿En qué línea está el error?"
+FIX_PROMPT = "Este código tiene un error. Corrígelo para que vuelva a funcionar."
 FIELD_CONTEXT_LINES = 4  # líneas vecinas alrededor de un campo: que el error no sea la única línea
 _COLLECTION = re.compile(r"\b(List|Set|Collection|Iterable|Map)\s*<")
 
@@ -226,4 +227,17 @@ def _header(cls: JavaClass) -> SnippetRef:
     return SnippetRef(cls.file, cls.start_line, max(cls.start_line, end))
 
 
+class FixCodeRule(QuestionRule):
+    """Los mismos errores que "Encuentra el error", pero para corregirlos editando el código."""
+
+    def __init__(self, source: QuestionRule | None = None) -> None:
+        self._source = source or FindErrorRule()
+
+    def drafts(self, model: ProjectModel, kb: KnowledgeBase) -> Iterator[QuestionDraft]:
+        for draft in self._source.drafts(model, kb):
+            # Clave propia: acertar un modo no debe hacer que el otro evite la pregunta como "reciente".
+            yield replace(draft, key="fix:" + draft.key.removeprefix("error:"), prompt=FIX_PROMPT)
+
+
 FIND_ERROR_RULES: tuple[QuestionRule, ...] = (FindErrorRule(),)
+FIX_CODE_RULES: tuple[QuestionRule, ...] = (FixCodeRule(),)

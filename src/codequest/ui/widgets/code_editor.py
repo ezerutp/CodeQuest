@@ -3,7 +3,7 @@
 import weakref
 from collections.abc import Iterable, Mapping
 
-from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -66,6 +66,8 @@ class CodeEditor(QPlainTextEdit):
     si el fragmento empieza en la línea 42, la primera línea visible se numera 42.
     Todas las APIs públicas usan esa numeración.
     """
+
+    submit_requested = Signal()  # Ctrl+Enter: "Comprobar" sin soltar el teclado
 
     def __init__(self, parent: QWidget | None = None, read_only: bool = True) -> None:
         super().__init__(parent)
@@ -215,6 +217,10 @@ class CodeEditor(QPlainTextEdit):
     # --- edición --------------------------------------------------------------------
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        if (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+                and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            self.submit_requested.emit()
+            return
         if self.isReadOnly():
             super().keyPressEvent(event)
             return
