@@ -47,7 +47,7 @@
    abiertas, explicar con el contexto del proyecto, generar pistas. Si no, todo sigue
    funcionando con el banco local.
 6. Cada intento se guarda en SQLite (fuera del repositorio analizado) para calcular
-   progreso, temas débiles y, más adelante, XP y rachas.
+   progreso y temas débiles.
 
 ### Arquitectura recomendada: tres capas
 
@@ -102,8 +102,7 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
    viven en el directorio de datos del usuario (`platformdirs`:
    `~/.local/share/codequest/`, `%APPDATA%\codequest` …).
 3. **Identidad del proyecto (MVP):** `project_id = sha256(ruta canónica)[:16]`. Guardamos
-   también `git remote origin` (sin credenciales) y el nombre como metadatos. Si el
-   usuario mueve la carpeta y el remote coincide, se puede re-vincular (v0.3).
+   también `git remote origin` (sin credenciales) y el nombre como metadatos.
    Simple, determinista y sin escribir nada en el repo del usuario.
 4. **`AIProvider` mínimo**: un único método `complete(request) -> AIResponse`. Los
    prompts y el parseo viven en `AITutor`. Así añadir `OpenAIProvider` o un modelo
@@ -113,7 +112,7 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
    `resources/knowledge/*.yaml` con el mismo esquema.
 6. **Preguntas identificadas por clave estable**, no por su texto:
    `rule_id + clase + miembro` (p. ej. `annotation.transactional:UserService#updateUser`).
-   Permite historial y repetición espaciada sin guardar código en la base de datos.
+   Permite llevar el historial sin guardar código en la base de datos.
 7. **Estilos**: paleta de tokens en Python + varios `.qss` pequeños con placeholders
    `${token}`. Cambiar de tema = cambiar la paleta.
 8. **Iconos con `qtawesome`**, no emojis: se renderizan igual en todos los sistemas y se
@@ -211,8 +210,8 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
 
 ### Qué dejamos para después
 
-Parser real (tree-sitter), modos FindError/FixCode/Comparison/WhatIf, XP/niveles/rachas,
-repetición espaciada, multi-proveedor IA, YouTube, tema claro, i18n, empaquetado
+Parser real (tree-sitter), modos FindError/FixCode/Comparison/WhatIf,
+multi-proveedor IA, YouTube, tema claro, i18n, empaquetado
 (PyInstaller/pipx), soporte de otros lenguajes (Python, TypeScript/NestJS, Kotlin).
 
 ---
@@ -250,9 +249,6 @@ Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo
 ### v0.3 — “Juego de verdad”
 - Modos **Encuentra el error** (mutaciones locales + evaluación IA) y **Corrige el código**.
 - Modo **Comparaciones** basado en tecnologías detectadas.
-- XP, niveles, rachas, temas débiles, repetición espaciada (SM-2 simplificado).
-- Mensaje de bienvenida contextual (“Ayer practicamos Controllers…”).
-- Re-vinculación de proyectos movidos (por git remote).
 
 ### v1.0 — “Plataforma”
 - Parser basado en `tree-sitter` y soporte multi-módulo robusto.
@@ -347,8 +343,8 @@ Cambios respecto a la propuesta original y por qué:
 |-------|-----------------|
 | `BaseGameMode` (ABC) | `id`, `title`, `requires_ai`, `next_exercise()`, `evaluate(answer) -> Evaluation`. |
 | `MultipleChoiceMode`, `ExplainCodeMode`, … | Implementaciones concretas. |
-| `Evaluation` | Resultado: correcto/parcial/incorrecto, feedback, conceptos afectados, XP, si usó IA. |
-| `GameSession` | Una partida: modo, ejercicios, resultados, racha interna. Emite eventos para persistir. |
+| `Evaluation` | Resultado: correcto/parcial/incorrecto, feedback, conceptos afectados, si usó IA. |
+| `GameSession` | Una partida: modo, ejercicios y resultados. Emite eventos para persistir. |
 
 ### IA
 | Clase | Responsabilidad |
@@ -462,7 +458,7 @@ requiere IA no disponible. Filtros: “Todo el proyecto”, “Por rol”, “Po
 ```
 
 ### Progreso (v0.2)
-Nivel y XP (v0.3), barra de dominio por tema (Spring Web, JPA, DI, Transacciones),
+Barra de dominio por tema (Spring Web, JPA, DI, Transacciones),
 lista de conceptos débiles con botón “Practicar”, clases practicadas, historial de sesiones.
 
 ### Configuración (v0.2)
