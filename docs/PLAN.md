@@ -181,6 +181,11 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     "Te cuesta" = la última respuesta fue fallo o "No sé". Las rondas ordenan fallados → sin
     practicar → en progreso → dominados, y dentro de cada concepto evitan lo visto hace poco. Si
     la base falla, `ProgressService` desactiva el guardado y el juego sigue.
+26. **Configuración (GCQ-11).** `Settings` (inmutable, en `core/settings.py`) se guarda en
+    `settings.json` en la carpeta de datos; un archivo ausente o dañado da los valores por
+    defecto. La IA se activa/desactiva y cambia de modelo en caliente: `KnowledgeService` y
+    `ExplainService` aceptan `set_provider()`. `CODEQUEST_AI_MODEL` tiene prioridad sobre el
+    modelo guardado. "Borrar el progreso" afecta solo al proyecto actual y pide confirmación.
 
 ### Seguridad sobre el repositorio
 
@@ -223,7 +228,7 @@ Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ
 
 ### v0.2 — “Aprendo con mis palabras”
 
-Estado: ✅ página Progreso (GCQ-10) · ⏳ resto.
+Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ⏳ resto.
 - Modo **Explícame este código** evaluado por Claude (feedback pedagógico).
 - Modo **Verdadero/Falso**.
 - Página **Progreso** (dominio por tema, historial) y página **Conceptos** (KB navegable).

@@ -34,6 +34,11 @@ class KnowledgeService:
         self._provider = provider
         self._generator = ConceptGenerator(provider) if provider else None
 
+    def set_provider(self, provider: AIProvider | None) -> None:
+        """Activa, cambia o desactiva la IA en caliente (desde Configuración)."""
+        self._provider = provider
+        self._generator = ConceptGenerator(provider) if provider else None
+
     @property
     def can_generate(self) -> bool:
         return self._generator is not None and self._store is not None

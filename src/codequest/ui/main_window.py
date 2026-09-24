@@ -1,6 +1,7 @@
 """Ventana principal: barra lateral + páginas apiladas."""
 
 import logging
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -16,11 +17,15 @@ from PySide6.QtWidgets import (
 
 from codequest.app.constants import APP_NAME
 from codequest.app.context import AppContext
+from codequest.core.ai.anthropic_provider import AVAILABLE_MODELS, DEFAULT_MODEL, MODEL_ENV
+from codequest.core.ai.factory import create_provider
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.package_tree import display_name
 from codequest.core.games.base import Evaluation
 from codequest.core.games.catalog import MULTIPLE_CHOICE, mode_info
+from codequest.core.knowledge.models import ConceptSource
 from codequest.core.project.models import ProjectInfo
+from codequest.core.settings import Settings, SettingsStore
 from codequest.services.explain_service import ExplainService
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.services.learning_service import LearningService
@@ -33,25 +38,22 @@ from codequest.ui.pages.concepts.page import ConceptsPage
 from codequest.ui.pages.dashboard import DashboardPage
 from codequest.ui.pages.explorer.page import ProjectExplorerPage
 from codequest.ui.pages.learn.page import LearnPage
-from codequest.ui.pages.placeholder import PlaceholderPage
 from codequest.ui.pages.progress.page import ProgressPage
+from codequest.ui.pages.settings.page import DataPaths, SettingsPage
 from codequest.ui.workers import AnalysisRunner, BackgroundTask
 
 log = logging.getLogger(__name__)
-
-# Secciones aún no implementadas. El id de página coincide con el nombre de su icono.
-PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
-    (PageId.SETTINGS, "Configuración", "IA, apariencia y datos."),
-)
-
 
 class MainWindow(QMainWindow):
     def __init__(self, context: AppContext, service: ProjectService,
                  learning: LearningService | None = None, knowledge_dir: Path | None = None,
                  knowledge: KnowledgeService | None = None, explain: ExplainService | None = None,
-                 progress: ProgressService | None = None) -> None:
+                 progress: ProgressService | None = None, settings_store: SettingsStore | None = None,
+                 data_paths: DataPaths | None = None) -> None:
         super().__init__()
-        self._context = context
+        self._settings_store = settings_store
+        self._settings = settings_store.load() if settings_store else Settings()
+        self._context = replace(context, ai_enabled=self._settings.ai_enabled)
         self._service = service
         self._learning = learning or LearningService()
         self._knowledge = knowledge or KnowledgeService(self._learning.kb, store=None, provider=None)
@@ -106,8 +108,11 @@ class MainWindow(QMainWindow):
         self._explain_task = BackgroundTask(self)
         self._explain_task.finished.connect(self._on_explanation_ready)
         self._explain_task.failed.connect(self._on_explanation_failed)
-        for page_id, title, description in PLACEHOLDER_PAGES:
-            self._add_page(page_id, PlaceholderPage(page_id.value, title, description))
+        self._settings_page = SettingsPage(AVAILABLE_MODELS, data_paths or DataPaths(None, knowledge_dir, None, None))
+        self._settings_page.ai_enabled_changed.connect(self._set_ai_enabled)
+        self._settings_page.ai_model_changed.connect(self._set_ai_model)
+        self._settings_page.reset_progress_requested.connect(self._reset_progress)
+        self._add_page(PageId.SETTINGS, self._settings_page)
 
         self._sidebar.page_selected.connect(self.show_page)
 
@@ -142,6 +147,62 @@ class MainWindow(QMainWindow):
         for page in self._pages.values():
             page.set_context(self._context)
             QTimer.singleShot(0, page.sync_content_size)
+        self._refresh_settings()
+
+    # --- configuración -------------------------------------------------------------
+
+    def _refresh_settings(self) -> None:
+        counts = self._learning.kb.source_counts()
+        env_model = os.environ.get(MODEL_ENV, "").strip() or None
+        self._settings_page.set_state(
+            self._context, self._settings,
+            effective_model=env_model or self._settings.ai_model or DEFAULT_MODEL, env_model=env_model,
+            knowledge_counts=(counts[ConceptSource.USER], counts[ConceptSource.AI]),
+            progress_error=None if self._progress.available else (
+                self._progress.error or "el guardado del progreso no está disponible"),
+        )
+
+    def _save_settings(self, settings: Settings) -> None:
+        self._settings = settings
+        if self._settings_store is None:
+            return
+        try:
+            self._settings_store.save(settings)
+        except OSError as exc:
+            log.warning("No se pudieron guardar los ajustes: %s", exc)
+            warn(self, "No se pudieron guardar los ajustes.", details=f"Se aplican solo en esta sesión. ({exc})")
+
+    def _configure_ai(self) -> None:
+        """Aplica los ajustes de IA en caliente: mismo proveedor para conceptos y explicaciones."""
+        provider = create_provider(self._context.ai, self._settings.ai_model) if self._context.ai_active else None
+        self._knowledge.set_provider(provider)
+        self._explain.set_provider(provider)
+        self._learn.set_ai_available(self._explain.can_explain, self._explain.provider_name)
+
+    def _set_ai_enabled(self, enabled: bool) -> None:
+        self._save_settings(self._settings.with_changes(ai_enabled=enabled))
+        self._context = replace(self._context, ai_enabled=enabled)
+        self._configure_ai()
+        self._apply_context()
+        self._refresh_knowledge()
+
+    def _set_ai_model(self, model: str | None) -> None:
+        self._save_settings(self._settings.with_changes(ai_model=model))
+        self._configure_ai()
+        self._refresh_settings()
+
+    def _reset_progress(self) -> None:
+        name = self._context.project.name
+        if not confirm(
+            self, "Borrar progreso", f"¿Borrar todo tu progreso en {name}?",
+            details="Se eliminan tus respuestas, sesiones y dominio de este proyecto. No se puede deshacer. "
+                    "Los demás proyectos no se tocan.",
+            confirm_text="Borrar progreso", icon_name="delete",
+        ):
+            return
+        self._progress.reset()
+        self._refresh_knowledge()
+        self._refresh_settings()
 
     def _set_project(self, project: ProjectInfo) -> None:
         """Cambia el proyecto activo y lanza su análisis en segundo plano."""
@@ -182,6 +243,7 @@ class MainWindow(QMainWindow):
         self._dashboard.set_progress(overview, self._progress.error)
         self._progress_page.set_overview(overview, self._progress.sessions(), self._progress.error)
         self._concepts.set_report(report, overview.history)
+        self._refresh_settings()
 
     def _current_percent(self) -> int:
         if self._model is None:

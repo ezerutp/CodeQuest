@@ -13,6 +13,12 @@ class ExplainService:
         self._explainer = CodeExplainer(provider) if provider else None
         self._cache: dict[str, str] = {}  # clave de pregunta -> explicación (solo durante la sesión)
 
+    def set_provider(self, provider: AIProvider | None) -> None:
+        """Activa, cambia o desactiva la IA en caliente. Las explicaciones en caché se descartan."""
+        self._provider = provider
+        self._explainer = CodeExplainer(provider) if provider else None
+        self._cache.clear()
+
     @property
     def can_explain(self) -> bool:
         return self._explainer is not None

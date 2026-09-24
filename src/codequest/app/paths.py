@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from platformdirs import user_data_dir
+from platformdirs import user_data_dir, user_log_dir
 
 from codequest.app.constants import APP_SLUG
 
@@ -19,3 +19,11 @@ def knowledge_dir() -> Path:
 def database_path() -> Path:
     """Progreso local (SQLite). Solo claves de preguntas y resultados, nunca código."""
     return data_dir() / "codequest.db"
+
+
+def settings_path() -> Path:
+    return data_dir() / "settings.json"
+
+
+def log_dir() -> Path:
+    return Path(user_log_dir(APP_SLUG, appauthor=False))

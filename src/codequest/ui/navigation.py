@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushBu
 
 from codequest.app.constants import APP_NAME
 from codequest.app.context import AppContext
-from codequest.ui.formatting import ai_indicator
+from codequest.ui.formatting import ai_detail, ai_indicator
 from codequest.ui.icons import icon, icon_label
 from codequest.ui.theme import current_palette
 from codequest.ui.widgets import StatusIndicator, section_title
@@ -100,5 +100,5 @@ class Sidebar(QFrame):
         metrics = self._project_name.fontMetrics()
         self._project_name.setText(metrics.elidedText(name, Qt.TextElideMode.ElideMiddle, 200))
         self._project_name.setToolTip(str(context.project.root))
-        text, state = ai_indicator(context.ai)
-        self._ai_status.set_status(text, state, context.ai.detail)
+        text, state = ai_indicator(context.ai, context.ai_enabled)
+        self._ai_status.set_status(text, state, ai_detail(context.ai, context.ai_enabled))

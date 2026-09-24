@@ -9,11 +9,12 @@ from codequest import __version__
 from codequest.app.constants import APP_NAME, APP_SLUG, APP_TAGLINE
 from codequest.app.context import AppContext
 from codequest.app.logging_setup import setup_logging
-from codequest.app.paths import database_path, knowledge_dir
+from codequest.app.paths import database_path, knowledge_dir, log_dir, settings_path
 from codequest.core.ai.availability import detect_ai_status
 from codequest.core.ai.factory import create_provider
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.store import KnowledgeStore
+from codequest.core.settings import SettingsStore
 from codequest.services.explain_service import ExplainService
 from codequest.services.knowledge_service import KnowledgeService
 from codequest.services.learning_service import LearningService
@@ -75,7 +76,9 @@ def main(argv: list[str] | None = None) -> int:
     user_knowledge = knowledge_dir()
     kb = KnowledgeBase.load(user_knowledge)
     learning = LearningService(kb)
-    provider = create_provider(context.ai)
+    settings_store = SettingsStore(settings_path())
+    settings = settings_store.load()
+    provider = create_provider(context.ai, settings.ai_model) if settings.ai_enabled else None
     knowledge = KnowledgeService(kb, KnowledgeStore(user_knowledge), provider)
     explain = ExplainService(provider)
     progress = _open_progress()
@@ -94,6 +97,10 @@ def main(argv: list[str] | None = None) -> int:
     apply_palette(app, DARK)  # también para diálogos y ventanas secundarias
     app.setStyleSheet(load_stylesheet(DARK))
 
-    window = MainWindow(context, service, learning, user_knowledge, knowledge, explain, progress)
+    from codequest.ui.pages.settings.page import DataPaths
+
+    paths = DataPaths(database=database_path(), knowledge=user_knowledge, logs=log_dir(), settings=settings_path())
+    window = MainWindow(context, service, learning, user_knowledge, knowledge, explain, progress,
+                        settings_store=settings_store, data_paths=paths)
     window.show()
     return app.exec()

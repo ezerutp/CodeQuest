@@ -5,9 +5,7 @@ import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from platformdirs import user_log_dir
-
-from codequest.app.constants import APP_SLUG
+from codequest.app.paths import log_dir as default_log_dir
 
 # Cadenas con forma de API key (Anthropic, OpenAI...). Defensa en profundidad:
 # el código nunca debería loguear una key, pero si ocurre, se enmascara.
@@ -25,7 +23,7 @@ class RedactSecretsFilter(logging.Filter):
 
 def setup_logging(debug: bool = False) -> Path:
     """Configura consola + archivo rotativo. Devuelve la ruta del log."""
-    log_dir = Path(user_log_dir(APP_SLUG, appauthor=False))
+    log_dir = default_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "codequest.log"
 
