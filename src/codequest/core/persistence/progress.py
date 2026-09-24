@@ -62,6 +62,15 @@ class ProjectHistory:
         return self.attempts > 0
 
 
+@dataclass(frozen=True, slots=True)
+class SessionSummary:
+    started_at: str
+    mode: str
+    scope: str | None
+    answered: int
+    correct: int
+
+
 class ProgressRepository:
     def __init__(self, db: Database, clock: Clock | None = None) -> None:
         self._db = db
@@ -141,6 +150,19 @@ class ProgressRepository:
             last_session_at=last["started_at"] if last else None,
             last_scope=last["scope"] if last else None,
         )
+
+    def recent_sessions(self, project_id: str, limit: int = 10) -> list[SessionSummary]:
+        """Sesiones con al menos una respuesta, de la más reciente a la más antigua."""
+        rows = self._db.connection.execute(
+            """SELECT s.started_at, s.mode, s.scope, COUNT(a.id) AS answered,
+                      SUM(a.outcome = 'correct') AS correct
+               FROM sessions s JOIN attempts a ON a.session_id = s.id
+               WHERE s.project_id = ?
+               GROUP BY s.id ORDER BY s.started_at DESC, s.id DESC LIMIT ?""",
+            (project_id, limit),
+        ).fetchall()
+        return [SessionSummary(r["started_at"], r["mode"], r["scope"], r["answered"], r["correct"] or 0)
+                for r in rows]
 
     def recent_question_keys(self, project_id: str, limit: int = 30) -> frozenset[str]:
         rows = self._db.connection.execute(

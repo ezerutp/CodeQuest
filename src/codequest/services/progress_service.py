@@ -13,11 +13,12 @@ from typing import Any, TypeVar
 
 from codequest.core.games.base import Evaluation, GameSession, Outcome
 from codequest.core.knowledge.coverage import KnowledgeReport
-from codequest.core.knowledge.models import Concept
+from codequest.core.knowledge.models import Concept, Topic
 from codequest.core.persistence.progress import (
     ConceptProgress,
     ProgressRepository,
     ProjectHistory,
+    SessionSummary,
     concept_priorities,
 )
 from codequest.core.project.models import ProjectInfo
@@ -32,6 +33,14 @@ _EMPTY_HISTORY = ProjectHistory(concepts={}, sessions=0, attempts=0, correct=0, 
 
 
 @dataclass(frozen=True, slots=True)
+class TopicProgress:
+    topic: Topic
+    percent: int  # dominio medio de sus conceptos
+    mastered: int
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
 class ProgressOverview:
     percent: int  # dominio medio de los conceptos que usa el proyecto
     mastered: int
@@ -39,6 +48,7 @@ class ProgressOverview:
     total: int  # conceptos que usa el proyecto
     weak: tuple[Concept, ...]  # la última respuesta fue un fallo o "No sé"; los que más cuestan primero
     history: ProjectHistory
+    topics: tuple[TopicProgress, ...] = ()  # de menor a mayor dominio: lo que más cuesta, arriba
 
     @property
     def has_history(self) -> bool:
@@ -120,6 +130,7 @@ class ProgressService:
         weak.sort(key=lambda item: item[1].last_seen, reverse=True)  # a igual dominio, lo más reciente
         weak.sort(key=lambda item: item[1].mastery)  # sort estable: primero lo que más cuesta
         return ProgressOverview(
+            topics=_by_topic(progress),
             percent=round(100 * sum(masteries) / len(masteries)) if masteries else 0,
             mastered=sum(1 for _, p in progress if p and p.is_mastered),
             practiced=sum(1 for _, p in progress if p),
@@ -128,8 +139,28 @@ class ProgressService:
             history=history,
         )
 
+    @_safe(default=[])
+    def sessions(self, limit: int = 10) -> list[SessionSummary]:
+        return self._repo.recent_sessions(self._project_id, limit) if self._project_id else []
+
     @_safe()
     def reset(self) -> None:
         if self._project_id is not None:
             self._repo.reset_project(self._project_id)
 
+
+
+def _by_topic(progress: list[tuple[Concept, ConceptProgress | None]]) -> tuple[TopicProgress, ...]:
+    groups: dict[Topic, list[ConceptProgress | None]] = {}
+    for concept, item in progress:
+        groups.setdefault(concept.topic, []).append(item)
+    topics = [
+        TopicProgress(
+            topic=topic,
+            percent=round(100 * sum(p.mastery if p else 0.0 for p in items) / len(items)),
+            mastered=sum(1 for p in items if p and p.is_mastered),
+            total=len(items),
+        )
+        for topic, items in groups.items()
+    ]
+    return tuple(sorted(topics, key=lambda t: (t.percent, t.topic.label)))

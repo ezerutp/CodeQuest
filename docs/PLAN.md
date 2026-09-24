@@ -222,6 +222,8 @@ Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ
 13. SQLite: proyecto, sesiones, intentos, dominio por concepto.
 
 ### v0.2 — “Aprendo con mis palabras”
+
+Estado: ✅ página Progreso (GCQ-10) · ⏳ resto.
 - Modo **Explícame este código** evaluado por Claude (feedback pedagógico).
 - Modo **Verdadero/Falso**.
 - Página **Progreso** (dominio por tema, historial) y página **Conceptos** (KB navegable).

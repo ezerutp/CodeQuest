@@ -34,13 +34,13 @@ from codequest.ui.pages.dashboard import DashboardPage
 from codequest.ui.pages.explorer.page import ProjectExplorerPage
 from codequest.ui.pages.learn.page import LearnPage
 from codequest.ui.pages.placeholder import PlaceholderPage
+from codequest.ui.pages.progress.page import ProgressPage
 from codequest.ui.workers import AnalysisRunner, BackgroundTask
 
 log = logging.getLogger(__name__)
 
 # Secciones aún no implementadas. El id de página coincide con el nombre de su icono.
 PLACEHOLDER_PAGES: tuple[tuple[PageId, str, str], ...] = (
-    (PageId.PROGRESS, "Progreso", "Tu dominio por tema, XP y rachas."),
     (PageId.SETTINGS, "Configuración", "IA, apariencia y datos."),
 )
 
@@ -91,6 +91,10 @@ class MainWindow(QMainWindow):
         self._explorer = ProjectExplorerPage(load_source=lambda model, cls: service.read_source(model, cls, True))
         self._explorer.practice_requested.connect(lambda cls: self._start_round(cls.qualified_name))
         self._add_page(PageId.PROJECT, self._explorer)
+        self._progress_page = ProgressPage()
+        self._progress_page.start_requested.connect(lambda: self._start_round(None))
+        self._progress_page.review_requested.connect(self._start_review)
+        self._add_page(PageId.PROGRESS, self._progress_page)
         self._concepts = ConceptsPage(self._knowledge, knowledge_dir)
         self._concepts.generate_requested.connect(self._generate_concepts)
         self._concepts.delete_requested.connect(self._delete_concept)
@@ -176,6 +180,7 @@ class MainWindow(QMainWindow):
         overview = self._progress.overview(report)
         self._dashboard.set_knowledge(report)
         self._dashboard.set_progress(overview, self._progress.error)
+        self._progress_page.set_overview(overview, self._progress.sessions(), self._progress.error)
         self._concepts.set_report(report, overview.history)
 
     def _current_percent(self) -> int:
@@ -260,7 +265,12 @@ class MainWindow(QMainWindow):
             return
         self._start_round(None, mode_id)
 
-    def _start_round(self, class_name: str | None, mode_id: str = MULTIPLE_CHOICE) -> None:
+    def _start_review(self, concept_ids: frozenset[str]) -> None:
+        """Ronda solo con los conceptos que el estudiante falló la última vez."""
+        self._start_round(None, concept_ids=concept_ids)
+
+    def _start_round(self, class_name: str | None, mode_id: str = MULTIPLE_CHOICE,
+                     concept_ids: frozenset[str] | None = None) -> None:
         """Nueva ronda sobre todo el proyecto o sobre una clase concreta."""
         self.show_page(PageId.LEARN)
         if self._model is None:
@@ -269,13 +279,14 @@ class MainWindow(QMainWindow):
                       "Los ejercicios están disponibles para proyectos Java.")
             self._learn.show_mode_select(notice)
             return
-        concept_ids = [c.id for c in self._learning.kb.concepts]
+        all_ids = [c.id for c in self._learning.kb.concepts]
         session = self._learning.start_session(
             self._model, mode_id, class_name=class_name,
-            priorities=self._progress.priorities(concept_ids), avoid_keys=self._progress.recent_keys(),
+            priorities=self._progress.priorities(all_ids), avoid_keys=self._progress.recent_keys(),
+            concept_ids=concept_ids,
         )
         cls = next((c for c in self._model.classes if c.qualified_name == class_name), None)
-        label = display_name(cls) if cls else None
+        label = display_name(cls) if cls else ("Repaso" if concept_ids is not None else None)
         if not session.questions:
             target = f"la clase {label}" if label else "este proyecto"
             self._learn.show_mode_select(

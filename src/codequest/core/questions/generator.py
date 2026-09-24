@@ -17,12 +17,15 @@ class QuestionGenerator:
         self._kb = kb
         self._rules = tuple(rules)
 
-    def drafts(self, model: ProjectModel, class_name: str | None = None) -> list[QuestionDraft]:
+    def drafts(self, model: ProjectModel, class_name: str | None = None,
+               concept_ids: frozenset[str] | None = None) -> list[QuestionDraft]:
         seen: set[str] = set()
         result: list[QuestionDraft] = []
         for rule in self._rules:
             for draft in rule.drafts(model, self._kb):
                 if draft.key in seen or (class_name and draft.class_name != class_name):
+                    continue
+                if concept_ids is not None and draft.concept.id not in concept_ids:
                     continue
                 seen.add(draft.key)
                 result.append(draft)
@@ -30,7 +33,8 @@ class QuestionGenerator:
 
     def generate(self, model: ProjectModel, limit: int = 10, class_name: str | None = None,
                  rng: random.Random | None = None, priorities: Mapping[str, float] | None = None,
-                 avoid_keys: frozenset[str] = frozenset()) -> list[Question]:
+                 avoid_keys: frozenset[str] = frozenset(),
+                 concept_ids: frozenset[str] | None = None) -> list[Question]:
         """Hasta `limit` preguntas, variando conceptos: 10 controllers no dan 10 preguntas de @RestController.
 
         `priorities` ordena los conceptos (menor = antes; los que faltan valen 1.0) y `avoid_keys`
@@ -39,7 +43,7 @@ class QuestionGenerator:
         rng = rng or random.Random()
         priorities = priorities or {}
         by_concept: dict[str, list[QuestionDraft]] = defaultdict(list)
-        for draft in self.drafts(model, class_name):
+        for draft in self.drafts(model, class_name, concept_ids):
             by_concept[draft.concept.id].append(draft)
 
         groups = list(by_concept.values())
