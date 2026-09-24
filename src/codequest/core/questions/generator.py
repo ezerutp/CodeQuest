@@ -10,15 +10,21 @@ from codequest.core.questions.models import Question, QuestionDraft
 from codequest.core.questions.rules import DEFAULT_RULES, QuestionRule
 
 CHOICES_PER_QUESTION = 4
+TRUE_FALSE_CHOICES = ("Verdadero", "Falso")
+
+
+class ChoiceStyle:
+    MULTIPLE = "multiple"  # 4 alternativas
+    TRUE_FALSE = "true_false"  # una afirmación: verdadera o falsa
+    NONE = "none"  # respuesta libre
 
 
 class QuestionGenerator:
     def __init__(self, kb: KnowledgeBase, rules: Sequence[QuestionRule] = DEFAULT_RULES,
-                 with_choices: bool = True) -> None:
-        """`with_choices=False` para ejercicios de respuesta libre ("Explícame este código")."""
+                 style: str = ChoiceStyle.MULTIPLE) -> None:
         self._kb = kb
         self._rules = tuple(rules)
-        self._with_choices = with_choices
+        self._style = style
 
     def drafts(self, model: ProjectModel, class_name: str | None = None,
                concept_ids: frozenset[str] | None = None) -> list[QuestionDraft]:
@@ -65,10 +71,32 @@ class QuestionGenerator:
                     groups.remove(group)
                 if len(picked) == limit:
                     break
-        if not self._with_choices:
+        if self._style == ChoiceStyle.NONE:
             return [Question(key=d.key, prompt=d.prompt, concept=d.concept, class_name=d.class_name,
                              snippet=d.snippet) for d in picked]
+        if self._style == ChoiceStyle.TRUE_FALSE:
+            # Mitad verdaderas y mitad falsas en orden aleatorio: con un 50 % independiente por
+            # pregunta salen rachas y el estudiante aprendería a adivinar "casi siempre es falso".
+            truths = [i % 2 == 0 for i in range(len(picked))]
+            rng.shuffle(truths)
+            return [self._build_statement(d, is_true, rng) for d, is_true in zip(picked, truths, strict=True)]
         return [self._build_choices(d, rng) for d in picked]
+
+    @staticmethod
+    def _build_statement(draft: QuestionDraft, is_true: bool, rng: random.Random) -> Question:
+        """Afirmación verdadera (el resumen del concepto) o falsa (uno de sus distractores)."""
+        text = draft.concept.summary if is_true else rng.choice(draft.concept.distractors)
+        lead = draft.statement_lead or draft.concept.title
+        statement = f"{lead} {text[:1].lower()}{text[1:]}"
+        return Question(
+            key=f"tf:{draft.key}",
+            prompt=statement,
+            concept=draft.concept,
+            class_name=draft.class_name,
+            snippet=draft.snippet,
+            choices=TRUE_FALSE_CHOICES,
+            correct_index=0 if is_true else 1,
+        )
 
     @staticmethod
     def _build_choices(draft: QuestionDraft, rng: random.Random) -> Question:

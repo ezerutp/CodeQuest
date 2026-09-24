@@ -69,3 +69,10 @@ def test_services_switch_provider_at_runtime(tmp_path: Path) -> None:
     for service in (knowledge, explain):
         service.set_provider(Fake())
     assert knowledge.can_generate and explain.can_explain
+
+
+@pytest.mark.parametrize(("value", "expected"), [(14, 14), (9, 9), (20, 20), (8, 11), (21, 11), ("12", 11), (True, 11)])
+def test_editor_font_size_is_validated(tmp_path: Path, value: object, expected: int) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"editor_font_size": value}))
+    assert SettingsStore(path).load().editor_font_size == expected

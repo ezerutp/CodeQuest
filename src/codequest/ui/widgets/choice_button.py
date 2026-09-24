@@ -34,7 +34,10 @@ class ChoiceButton(ClickableCard):
 
     @property
     def letter(self) -> str:
-        return LETTERS[self.index]
+        return self._letter.text()
+
+    def set_letter(self, letter: str) -> None:
+        self._letter.setText(letter)
 
     def set_text(self, text: str) -> None:
         self._text.setText(text)

@@ -40,6 +40,7 @@ from codequest.ui.pages.explorer.page import ProjectExplorerPage
 from codequest.ui.pages.learn.page import LearnPage
 from codequest.ui.pages.progress.page import ProgressPage
 from codequest.ui.pages.settings.page import DataPaths, SettingsPage
+from codequest.ui.widgets.code_editor import set_editor_font_size
 from codequest.ui.workers import AnalysisRunner, BackgroundTask
 
 log = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow):
         self._settings_store = settings_store
         self._settings = settings_store.load() if settings_store else Settings()
         self._context = replace(context, ai_enabled=self._settings.ai_enabled)
+        set_editor_font_size(self._settings.editor_font_size)  # antes de crear los editores
         self._service = service
         self._learning = learning or LearningService()
         self._knowledge = knowledge or KnowledgeService(self._learning.kb, store=None, provider=None)
@@ -120,6 +122,7 @@ class MainWindow(QMainWindow):
         self._settings_page.ai_enabled_changed.connect(self._set_ai_enabled)
         self._settings_page.ai_model_changed.connect(self._set_ai_model)
         self._settings_page.reset_progress_requested.connect(self._reset_progress)
+        self._settings_page.editor_font_size_changed.connect(self._set_editor_font_size)
         self._add_page(PageId.SETTINGS, self._settings_page)
 
         self._sidebar.page_selected.connect(self.show_page)
@@ -198,6 +201,10 @@ class MainWindow(QMainWindow):
         self._save_settings(self._settings.with_changes(ai_model=model))
         self._configure_ai()
         self._refresh_settings()
+
+    def _set_editor_font_size(self, size: int) -> None:
+        self._save_settings(self._settings.with_changes(editor_font_size=size))
+        set_editor_font_size(size)
 
     def _reset_progress(self) -> None:
         name = self._context.project.name

@@ -13,6 +13,8 @@ class QuestionDraft:
     concept: Concept
     class_name: str  # nombre cualificado de la clase de origen
     snippet: SnippetRef | None
+    # Sujeto para afirmaciones de Verdadero/Falso: "En tu método `x()` de `C`, `@Transactional`".
+    statement_lead: str = ""
 
 
 @dataclass(frozen=True, slots=True)

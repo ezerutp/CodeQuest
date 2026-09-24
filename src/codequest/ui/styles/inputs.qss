@@ -49,3 +49,13 @@ QPlainTextEdit#AnswerBox {
 }
 QPlainTextEdit#AnswerBox:focus { border-color: ${accent}; }
 QPlainTextEdit#AnswerBox[readOnly="true"] { color: ${text_muted}; }
+
+QSpinBox {
+    background: ${bg};
+    border: 1px solid ${border};
+    border-radius: 8px;
+    color: ${text};
+    padding: 6px 10px;
+    min-width: 72px;
+}
+QSpinBox:focus { border-color: ${accent}; }

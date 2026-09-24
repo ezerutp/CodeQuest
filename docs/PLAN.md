@@ -192,6 +192,11 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     El evaluador juzga comprensión, no palabras, y devuelve veredicto + lo entendido + lo que faltó +
     errores + una explicación modelo. Nuevo resultado `PARTIAL` (no cuenta para el dominio).
     Respuestas muy cortas se rechazan antes de llamar a la IA. Reutiliza el consentimiento de código.
+28. **Verdadero/Falso (GCQ-13).** Reutiliza las reglas de Alternativas: cada borrador guarda el sujeto
+    de la frase (`statement_lead`) y la afirmación usa el resumen del concepto (verdadera) o uno de
+    sus distractores (falsa). Cada ronda tiene mitad verdaderas y mitad falsas en orden aleatorio,
+    para que no se pueda adivinar por tendencia. Sin IA. El tamaño de letra del editor es un ajuste
+    más (9–20 pt) aplicado en caliente a todos los editores abiertos.
 
 ### Seguridad sobre el repositorio
 
@@ -234,7 +239,7 @@ Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ
 
 ### v0.2 — “Aprendo con mis palabras”
 
-Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo Explícame este código (GCQ-12) · ⏳ Verdadero/Falso, tamaño de fuente.
+Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo Explícame este código (GCQ-12) · ✅ Verdadero/Falso y tamaño de fuente (GCQ-13). **v0.2 completo.**
 - Modo **Explícame este código** evaluado por Claude (feedback pedagógico).
 - Modo **Verdadero/Falso**.
 - Página **Progreso** (dominio por tema, historial) y página **Conceptos** (KB navegable).
