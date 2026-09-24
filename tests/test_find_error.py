@@ -53,7 +53,7 @@ def test_rule_mutates_known_annotations_inside_the_snippet(service: ProjectServi
         assert draft.snippet.start_line <= draft.mutation.line <= draft.snippet.end_line
         assert not draft.snippet.focus_lines  # resaltar la línea regalaría la respuesta
         original, mutated = _mutated_line(service, model, draft)
-        assert original != mutated and draft.mutation.replace in mutated
+        assert original != mutated and draft.mutation.replacement in mutated
 
 
 def test_mapping_swap_keeps_the_route(service: ProjectService, model: ProjectModel) -> None:
@@ -70,7 +70,7 @@ def test_other_swaps_drop_arguments_that_would_give_the_change_away(service: Pro
 
 
 def test_relations_are_only_inverted_when_the_type_contradicts_them(model: ProjectModel) -> None:
-    swaps = {d.key: d.mutation.replace for d in _drafts(model) if d.concept.id.startswith("jpa.") and "#" in d.key}
+    swaps = {d.key: d.mutation.replacement for d in _drafts(model) if d.concept.id.startswith("jpa.")}
     assert swaps["error:jpa.one-to-many:com.example.shop.entity.User#orders"] == "@ManyToOne"
     assert swaps["error:jpa.many-to-one:com.example.shop.entity.Order#user"] == "@OneToMany"
 
@@ -80,13 +80,27 @@ def test_explanations_name_the_real_member(model: ProjectModel) -> None:
     assert "`dto`" in draft.mutation.explanation and "{" not in draft.mutation.explanation
 
 
-def test_apply_respects_word_boundaries_and_detects_stale_code() -> None:
-    mutation = CodeMutation(line=11, find="@Id", replace="@Column", explanation="")
-    assert mutation.apply("@IdClass(X.class)\n@Id\nLong id;", first_line=10) == "@IdClass(X.class)\n@Column\nLong id;"
+def test_apply_replaces_the_exact_span_and_detects_stale_code() -> None:
+    mutation = CodeMutation(line=11, column=4, end_column=28, original="@ManyToOne", replacement="@OneToMany",
+                            explanation="")
+    text = "class A {\n    @ManyToOne(fetch = LAZY) User user;"
+    assert mutation.apply(text, first_line=10) == "class A {\n    @OneToMany User user;"
     with pytest.raises(ValueError):
-        mutation.apply("@IdClass(X.class)\nLong id;", first_line=10)
+        mutation.apply("class A {\n    @OneToOne(fetch = LAZY) User user;", first_line=10)
     with pytest.raises(ValueError):
-        mutation.apply("@Id", first_line=40)  # la línea ya no está en el fragmento
+        mutation.apply(text, first_line=40)  # la línea ya no está en el fragmento
+
+
+def test_repository_calls_inside_methods_are_swapped(service: ProjectService, model: ProjectModel) -> None:
+    draft = _by_key(model, "UserServiceImpl#findById():userRepository.findById")
+    assert draft.concept.id == "data.jpa-repository"
+    original, mutated = _mutated_line(service, model, draft)
+    assert original == "User user = userRepository.findById(id)"
+    assert mutated == "User user = userRepository.deleteById(id)"
+    assert "`userRepository.findById(id)`" in draft.mutation.explanation
+    # `super.encode(raw)` o `u.getId()` no son repositorios: no se tocan.
+    assert all(d.mutation.original in {"save", "saveAll", "findById", "findAll", "deleteById", "delete"}
+               for d in _drafts(model) if not d.mutation.original.startswith("@"))
 
 
 def test_mode_evaluates_the_chosen_line(model: ProjectModel) -> None:
@@ -134,4 +148,4 @@ def test_ai_explanation_of_a_missed_error_describes_the_change(model: ProjectMod
     context = ContextBuilder(model).build(question.class_name, question.snippet)
     assert CodeExplainer(provider).explain(evaluation, context) == "Explicación."
     prompt = provider.requests[0].prompt
-    assert question.mutation.replace in prompt and f"línea {question.mutation.line + 1}" in prompt
+    assert question.mutation.replacement in prompt and f"línea {question.mutation.line + 1}" in prompt
