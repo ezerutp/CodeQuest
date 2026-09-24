@@ -5,16 +5,19 @@ from collections.abc import Mapping
 
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.games.base import BaseGameMode, GameSession
-from codequest.core.games.catalog import EXPLAIN_CODE, MULTIPLE_CHOICE, TRUE_FALSE
+from codequest.core.games.catalog import EXPLAIN_CODE, FIND_ERROR, MULTIPLE_CHOICE, TRUE_FALSE
 from codequest.core.games.explain_code import ExplainCodeMode
+from codequest.core.games.find_error import FindErrorMode
 from codequest.core.games.multiple_choice import MultipleChoiceMode, TrueFalseMode
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.coverage import KnowledgeReport, build_report
 from codequest.core.questions.generator import ChoiceStyle, QuestionGenerator
+from codequest.core.questions.mutations import FIND_ERROR_RULES
 from codequest.core.questions.rules import EXPLAIN_RULES
 
 ROUND_SIZE = 10
-ROUND_SIZES = {EXPLAIN_CODE: 5}  # escribir cuesta más que elegir: rondas más cortas
+# Escribir o leer un fragmento entero cuesta más que elegir: rondas más cortas.
+ROUND_SIZES = {EXPLAIN_CODE: 5, FIND_ERROR: 6}
 
 
 class LearningService:
@@ -25,10 +28,12 @@ class LearningService:
             MULTIPLE_CHOICE: self._generator,
             EXPLAIN_CODE: QuestionGenerator(self.kb, EXPLAIN_RULES, style=ChoiceStyle.NONE),
             TRUE_FALSE: QuestionGenerator(self.kb, style=ChoiceStyle.TRUE_FALSE),
+            FIND_ERROR: QuestionGenerator(self.kb, FIND_ERROR_RULES, style=ChoiceStyle.NONE),
         }
         self._rng = rng or random.Random()
         self._modes: dict[str, BaseGameMode] = {
             MULTIPLE_CHOICE: MultipleChoiceMode(), TRUE_FALSE: TrueFalseMode(), EXPLAIN_CODE: ExplainCodeMode(),
+            FIND_ERROR: FindErrorMode(),
         }
 
     def knowledge_report(self, model: ProjectModel) -> KnowledgeReport:

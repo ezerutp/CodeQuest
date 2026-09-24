@@ -196,6 +196,14 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     sus distractores (falsa). Cada ronda tiene mitad verdaderas y mitad falsas en orden aleatorio,
     para que no se pueda adivinar por tendencia. Sin IA. El tamaño de letra del editor es un ajuste
     más (9–20 pt) aplicado en caliente a todos los editores abiertos.
+29. **Encuentra el error (GCQ-16).** Una `CodeMutation` es solo una receta (línea, anotación original,
+    sustituta, explicación) que se aplica al mostrar el ejercicio sobre el texto ya leído, en memoria:
+    el archivo del estudiante nunca se toca. `FindErrorRule` solo usa sustituciones que son un error
+    claro en su contexto (`@GetMapping`→`@PostMapping`, `@PathVariable`↔`@RequestBody`, `@Id`→`@Column`,
+    relaciones invertidas según el tipo del campo…) y quita los argumentos que delatarían el cambio
+    (`@RequestBody("id")`). La línea no se resalta: encontrarla es el ejercicio. El estudiante pulsa la
+    línea y la evaluación es local (número de línea); la IA solo es el "Explícamelo mejor" opcional.
+    Si el código cambió desde el análisis y la mutación ya no encaja, solo se ofrece "No sé".
 
 ### Seguridad sobre el repositorio
 
@@ -247,7 +255,9 @@ Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo
 - KnowledgeBase en YAML.
 
 ### v0.3 — “Juego de verdad”
-- Modos **Encuentra el error** (mutaciones locales + evaluación IA) y **Corrige el código**.
+
+Estado: ✅ modo Encuentra el error (GCQ-16) · ⏳ Corrige el código · ⏳ Comparaciones.
+- Modos **Encuentra el error** (mutaciones y evaluación locales) y **Corrige el código**.
 - Modo **Comparaciones** basado en tecnologías detectadas.
 
 ### v1.0 — “Plataforma”
@@ -337,12 +347,14 @@ Cambios respecto a la propuesta original y por qué:
 | `Question` | Pregunta lista para jugar: clave estable, modo, enunciado, `CodeSnippet`, alternativas, índice correcto, `Explanation`, conceptos, origen (local/IA). |
 | `QuestionRule` (ABC) | Regla que, a partir de hechos del `ProjectModel` + KB, produce preguntas. Ej: `AnnotationPurposeRule`. |
 | `QuestionGenerator` | Ejecuta reglas, baraja, evita repetir lo reciente, prioriza temas débiles. |
+| `CodeMutation` | Error de una línea para "Encuentra el error": se aplica sobre una copia en memoria del fragmento. |
+| `FindErrorRule` | Produce borradores con una `CodeMutation` creíble por cada anotación conocida (`questions/mutations.py`). |
 
 ### Juego
 | Clase | Responsabilidad |
 |-------|-----------------|
 | `BaseGameMode` (ABC) | `id`, `title`, `requires_ai`, `next_exercise()`, `evaluate(answer) -> Evaluation`. |
-| `MultipleChoiceMode`, `ExplainCodeMode`, … | Implementaciones concretas. |
+| `MultipleChoiceMode`, `TrueFalseMode`, `ExplainCodeMode`, `FindErrorMode` | Implementaciones concretas. |
 | `Evaluation` | Resultado: correcto/parcial/incorrecto, feedback, conceptos afectados, si usó IA. |
 | `GameSession` | Una partida: modo, ejercicios y resultados. Emite eventos para persistir. |
 
