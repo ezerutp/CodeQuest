@@ -8,7 +8,7 @@ from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.roles import ComponentRole
 from codequest.core.knowledge.coverage import KnowledgeReport
 from codequest.services.progress_service import ProgressOverview
-from codequest.ui.formatting import ai_indicator, duration, inline_code_html, plural, role_count
+from codequest.ui.formatting import ai_detail, ai_indicator, duration, inline_code_html, plural, role_count
 from codequest.ui.icons import icon
 from codequest.ui.pages.base import Page
 from codequest.ui.theme import current_palette
@@ -238,9 +238,9 @@ class DashboardPage(Page):
         self._continue.setEnabled(project.is_supported)
         self._continue.setToolTip("" if project.is_supported else "El MVP soporta proyectos Java.")
 
-        text, state = ai_indicator(context.ai)
+        text, state = ai_indicator(context.ai, context.ai_enabled)
         self._ai_indicator.set_status(text, state)
-        self._ai_detail.setText(context.ai.detail)
+        self._ai_detail.setText(ai_detail(context.ai, context.ai_enabled))
 
     # --- análisis -------------------------------------------------------------
 

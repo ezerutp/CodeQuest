@@ -2,14 +2,17 @@
 
 import html
 import re
+from datetime import datetime, timedelta
 
 from codequest.core.ai.availability import AIStatus
 from codequest.core.analysis.roles import ComponentRole
 from codequest.ui.theme import current_palette
 
 
-def ai_indicator(ai: AIStatus) -> tuple[str, str]:
+def ai_indicator(ai: AIStatus, enabled: bool = True) -> tuple[str, str]:
     """Devuelve (texto, estado) para un StatusIndicator."""
+    if ai.available and not enabled:
+        return "IA desactivada", "off"
     if ai.available:
         return f"{ai.provider} conectada", "on"
     if ai.provider:
@@ -70,3 +73,24 @@ def inline_code_html(text: str) -> str:
     color = current_palette().syntax_annotation
     style = f"font-family: 'JetBrains Mono', 'Source Code Pro', monospace; color: {color};"
     return _INLINE_CODE.sub(lambda m: f'<span style="{style}">{m.group(1)}</span>', html.escape(text))
+
+
+_MONTHS = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+
+
+def session_date(iso: str, now: datetime | None = None) -> str:
+    """'2026-09-23T19:05:00+00:00' -> 'Hoy · 14:05' en hora local (o 'Ayer', o '12 sep')."""
+    moment = datetime.fromisoformat(iso).astimezone()
+    today = (now or datetime.now().astimezone()).date()
+    clock = moment.strftime("%H:%M")
+    if moment.date() == today:
+        return f"Hoy · {clock}"
+    if moment.date() == today - timedelta(days=1):
+        return f"Ayer · {clock}"
+    return f"{moment.day} {_MONTHS[moment.month - 1]} · {clock}"
+
+
+def ai_detail(ai: AIStatus, enabled: bool = True) -> str:
+    if ai.available and not enabled:
+        return "Desactivada en Configuración. Todo funciona en modo local."
+    return ai.detail

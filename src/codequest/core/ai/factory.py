@@ -8,13 +8,13 @@ from codequest.core.ai.base import AIProvider
 log = logging.getLogger(__name__)
 
 
-def create_provider(status: AIStatus) -> AIProvider | None:
+def create_provider(status: AIStatus, model: str | None = None) -> AIProvider | None:
     if not status.available:
         return None
     try:
         from codequest.core.ai.anthropic_provider import AnthropicProvider
 
-        return AnthropicProvider()
+        return AnthropicProvider(model=model)
     except Exception as exc:  # p. ej. SDK roto o credenciales ilegibles: la app sigue sin IA
         log.warning("No se pudo iniciar el proveedor de IA: %s", type(exc).__name__)
         return None

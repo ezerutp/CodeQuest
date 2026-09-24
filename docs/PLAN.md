@@ -181,6 +181,22 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     "Te cuesta" = la última respuesta fue fallo o "No sé". Las rondas ordenan fallados → sin
     practicar → en progreso → dominados, y dentro de cada concepto evitan lo visto hace poco. Si
     la base falla, `ProgressService` desactiva el guardado y el juego sigue.
+26. **Configuración (GCQ-11).** `Settings` (inmutable, en `core/settings.py`) se guarda en
+    `settings.json` en la carpeta de datos; un archivo ausente o dañado da los valores por
+    defecto. La IA se activa/desactiva y cambia de modelo en caliente: `KnowledgeService` y
+    `ExplainService` aceptan `set_provider()`. `CODEQUEST_AI_MODEL` tiene prioridad sobre el
+    modelo guardado. "Borrar el progreso" afecta solo al proyecto actual y pide confirmación.
+27. **Modo "Explícame este código" (GCQ-12).** Ejercicios = métodos reales con cuerpo (3–40 líneas)
+    y una anotación conocida (el concepto sirve para progreso y orienta al evaluador). `GameSession`
+    sigue síncrona: la IA evalúa antes, en un worker, y `ExplainCodeMode` solo traduce el veredicto.
+    El evaluador juzga comprensión, no palabras, y devuelve veredicto + lo entendido + lo que faltó +
+    errores + una explicación modelo. Nuevo resultado `PARTIAL` (no cuenta para el dominio).
+    Respuestas muy cortas se rechazan antes de llamar a la IA. Reutiliza el consentimiento de código.
+28. **Verdadero/Falso (GCQ-13).** Reutiliza las reglas de Alternativas: cada borrador guarda el sujeto
+    de la frase (`statement_lead`) y la afirmación usa el resumen del concepto (verdadera) o uno de
+    sus distractores (falsa). Cada ronda tiene mitad verdaderas y mitad falsas en orden aleatorio,
+    para que no se pueda adivinar por tendencia. Sin IA. El tamaño de letra del editor es un ajuste
+    más (9–20 pt) aplicado en caliente a todos los editores abiertos.
 
 ### Seguridad sobre el repositorio
 
@@ -222,6 +238,8 @@ Estado: ✅ 1, 2, 3, 4, 5, 6, 11 (GCQ-01) · ✅ 7, 8 (GCQ-02) · ✅ 9, 10 (GCQ
 13. SQLite: proyecto, sesiones, intentos, dominio por concepto.
 
 ### v0.2 — “Aprendo con mis palabras”
+
+Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo Explícame este código (GCQ-12) · ✅ Verdadero/Falso y tamaño de fuente (GCQ-13). **v0.2 completo.**
 - Modo **Explícame este código** evaluado por Claude (feedback pedagógico).
 - Modo **Verdadero/Falso**.
 - Página **Progreso** (dominio por tema, historial) y página **Conceptos** (KB navegable).

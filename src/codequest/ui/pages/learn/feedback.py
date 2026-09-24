@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from codequest.core.games.base import Evaluation, Outcome
 from codequest.core.knowledge.models import Concept
+from codequest.core.questions.generator import TRUE_FALSE_CHOICES
 from codequest.ui.formatting import inline_code_html
 from codequest.ui.icons import icon
 from codequest.ui.pages.learn.ai_explanation import AIExplanationBox, paragraphs_html
@@ -16,6 +17,12 @@ from codequest.ui.widgets import Card, IconText
 from codequest.ui.widgets.style_utils import set_style_property
 
 YOUTUBE_SEARCH = "https://www.youtube.com/results?search_query="
+
+_STATEMENT_TITLES = {
+    Outcome.CORRECT: "¡Correcto! La afirmación es {letter}.",
+    Outcome.INCORRECT: "No exactamente: la afirmación es {letter}.",
+    Outcome.SKIPPED: "La afirmación es {letter}.",
+}
 
 _TITLES = {
     Outcome.CORRECT: ("¡Correcto!", "success", "correct"),
@@ -92,6 +99,11 @@ class FeedbackPanel(Card):
         self._ai.setVisible(self._ai_enabled)
 
         title, tone, icon_name = _TITLES[evaluation.outcome]
+        question = evaluation.question
+        is_statement = question.choices == TRUE_FALSE_CHOICES
+        if is_statement:
+            title = _STATEMENT_TITLES[evaluation.outcome]
+            correct_letter = "verdadera" if question.correct_index == 0 else "falsa"
         palette = current_palette()
         color = {"success": palette.success, "danger": palette.danger, "info": palette.syntax_annotation}[tone]
         self._icon.setPixmap(icon(icon_name, color).pixmap(22, 22))
@@ -100,7 +112,11 @@ class FeedbackPanel(Card):
         set_style_property(self, "variant", "success" if tone == "success" else "danger" if tone == "danger" else None)
 
         self._concept_title.setText(inline_code_html(f"`{concept.title}`"))
-        self._explanation.setText(paragraphs_html(concept.explanation))
+        explanation = concept.explanation
+        if is_statement and question.correct_index == 1:
+            # Afirmación falsa: primero lo que hace de verdad, luego la explicación completa.
+            explanation = f"Lo que hace en realidad: {concept.summary}\n\n{explanation}"
+        self._explanation.setText(paragraphs_html(explanation))
         self._analogy.setText(inline_code_html(concept.analogy))
 
     # --- IA ------------------------------------------------------------------------

@@ -118,3 +118,23 @@ def test_late_ai_answer_for_previous_question_is_discarded(qapp: QApplication) -
 
     view.show_ai_answer(session.current.key, "respuesta actual")
     assert "respuesta actual" in view._feedback._ai._answer.text()
+
+
+def test_true_false_question_shows_two_options_with_v_and_f(qapp: QApplication) -> None:
+    from codequest.core.games.multiple_choice import TrueFalseMode
+    from codequest.core.questions.generator import TRUE_FALSE_CHOICES
+
+    concept = KnowledgeBase.default().for_annotation("Transactional")
+    question = Question(key="tf:1", prompt="`@Transactional` hace algo.", concept=concept, class_name="C",
+                        snippet=SnippetRef("A.java", 3, 4, (3,)), choices=TRUE_FALSE_CHOICES, correct_index=1)
+    session = GameSession(TrueFalseMode(), [question])
+    view = _view([])
+    view.start(session, None)
+
+    visible = [c for c in view._choices if not c.isHidden()]
+    assert [c.letter for c in visible] == ["V", "F"]
+    view._answer(2)  # atajo "3": no aplica con dos opciones
+    assert not session.is_answered
+    view._answer(0)
+    assert session.results[0].outcome.value == "incorrect"
+    assert "falsa" in view._feedback._title.text()
