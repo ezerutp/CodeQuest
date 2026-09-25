@@ -10,17 +10,19 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QV
 from codequest.core.analysis.snippets import SnippetRef
 from codequest.core.games.base import Evaluation, GameSession, Outcome
 from codequest.core.games.catalog import mode_title
-from codequest.core.games.fix_code import CodeFix, FixKind, FixResult
+from codequest.core.games.fix_code import CodeFix, FixKind, FixResult, check_fix
 from codequest.core.questions.models import Question
-from codequest.ui.icons import icon
+from codequest.ui.icons import icon, icon_label
 from codequest.ui.pages.learn.feedback import FeedbackPanel
 from codequest.ui.pages.learn.game_view import MAX_EDITOR_LINES, SnippetLoader
 from codequest.ui.theme import current_palette
 from codequest.ui.widgets import Card, Chip, CodeEditor, IconText, muted, section_title
+from codequest.ui.widgets.style_utils import set_style_property
 
 log = logging.getLogger(__name__)
 
-HINT = "Edita el código aquí mismo y pulsa «Comprobar» (Ctrl+Enter). Tu archivo no se modifica."
+HINT = ("Edita el código aquí mismo. «Probar» (Ctrl+Shift+Enter) revisa tu versión sin enviarla; "
+        "«Comprobar» (Ctrl+Enter) la envía. Tu archivo no se modifica.")
 STALE_HINT = "Este fragmento cambió desde el análisis: pulsa «No sé» para ver el error."
 EXTRA_LINES = 2  # espacio para que el estudiante añada líneas sin que el editor salte
 
@@ -43,6 +45,28 @@ def result_title(result: FixResult | None, line: int) -> str:
             return f"Todavía no: el código sigue igual. El error estaba en la línea {line}."
         case _:
             return f"Todavía no: la línea {line} sigue sin estar bien."
+
+
+def trial_message(result: FixResult) -> tuple[str, str]:
+    """Tono y texto del resultado de «Probar». No dice en qué línea está el error: encontrarlo
+    sigue siendo parte del ejercicio."""
+    match result.kind:
+        case FixKind.FIXED:
+            return "success", "Tu versión está bien: pulsa «Comprobar» para enviarla."
+        case FixKind.OTHER_CHANGES:
+            return "warning", ("Arreglaste el error, pero también cambiaste otras partes. "
+                               "Puedes deshacer lo que no hacía falta tocar.")
+        case FixKind.SYNTAX_ERROR if result.error_line is not None:
+            return "danger", f"Error de sintaxis en la línea {result.error_line}."
+        case FixKind.SYNTAX_ERROR:
+            return "danger", "Error de sintaxis: falta cerrar algo (una llave, un paréntesis o un «;»)."
+        case FixKind.UNCHANGED:
+            return "info", "Todavía no has cambiado nada."
+        case _:
+            return "warning", "La sintaxis es correcta, pero el error sigue ahí."
+
+
+_TRIAL_ICONS = {"success": "correct", "danger": "incorrect", "warning": "warning", "info": "info"}
 
 
 class FixCodeView(QWidget):
@@ -83,7 +107,10 @@ class FixCodeView(QWidget):
         self._editor = CodeEditor(read_only=False)
         self._editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._editor.submit_requested.connect(self._confirm)
+        self._editor.try_requested.connect(self._try)
+        self._editor.textChanged.connect(self._clear_trial)
         card.body.addWidget(self._editor)
+        card.body.addWidget(self._build_trial())
         layout.addWidget(card)
 
         layout.addLayout(self._build_actions())
@@ -94,6 +121,8 @@ class FixCodeView(QWidget):
         layout.addWidget(self._feedback)
         for key in ("Ctrl+Return", "Ctrl+Enter"):  # con el foco fuera del editor
             QShortcut(QKeySequence(key), self).activated.connect(self._confirm)
+        for key in ("Ctrl+Shift+Return", "Ctrl+Shift+Enter"):
+            QShortcut(QKeySequence(key), self).activated.connect(self._try)
 
     # --- construcción -------------------------------------------------------
 
@@ -112,6 +141,20 @@ class FixCodeView(QWidget):
         row.addWidget(IconText("local", "Procesado localmente"))
         return row
 
+    def _build_trial(self) -> QWidget:
+        self._trial = QWidget()
+        row = QHBoxLayout(self._trial)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        self._trial_icon = icon_label("info")
+        row.addWidget(self._trial_icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._trial_text = QLabel()
+        self._trial_text.setObjectName("TrialResult")
+        self._trial_text.setWordWrap(True)
+        row.addWidget(self._trial_text, 1, Qt.AlignmentFlag.AlignVCenter)
+        self._trial.hide()
+        return self._trial
+
     def _build_actions(self) -> QHBoxLayout:
         row = QHBoxLayout()
         self._dont_know = QPushButton("No sé cómo arreglarlo")
@@ -127,6 +170,11 @@ class FixCodeView(QWidget):
         self._reset.clicked.connect(self._restore)
         row.addWidget(self._reset)
         row.addStretch(1)
+        self._try_button = QPushButton("Probar")
+        self._try_button.setIcon(icon("play"))
+        self._try_button.setToolTip("Revisa tu versión sin enviarla (no cuenta como intento). Atajo: Ctrl+Shift+Enter")
+        self._try_button.clicked.connect(self._try)
+        row.addWidget(self._try_button)
         self._check = QPushButton("Comprobar")
         self._check.setIcon(icon("correct", color="#ffffff", color_on="#ffffff"))
         self._check.setProperty("variant", "primary")
@@ -194,6 +242,8 @@ class FixCodeView(QWidget):
         self._hint.setText(HINT if ready else STALE_HINT)
         self._check.setEnabled(ready)
         self._check.show()
+        self._try_button.setEnabled(ready)
+        self._try_button.show()
         self._reset.setEnabled(ready)
         self._dont_know.setEnabled(True)
         self._next.hide()
@@ -226,6 +276,38 @@ class FixCodeView(QWidget):
         if self._can_answer():
             self._editor.set_code(self._mutated, first_line=self._first_line)
 
+    def _try(self) -> None:
+        """«Probar»: evalúa la versión del estudiante sin registrar la respuesta."""
+        if not self._can_answer() or self._original is None:
+            return
+        result = check_fix(self._session.current, self._fix())
+        tone, text = trial_message(result)
+        palette = current_palette()
+        color = {"success": palette.success, "danger": palette.danger,
+                 "warning": palette.warning}.get(tone, palette.text_muted)
+        self._trial_icon.setPixmap(icon(_TRIAL_ICONS[tone], color).pixmap(18, 18))
+        self._trial_text.setText(text)
+        set_style_property(self._trial_text, "tone", tone)
+        self._trial.show()
+        if result.kind is FixKind.SYNTAX_ERROR and result.error_line is not None:
+            self._editor.mark_lines({result.error_line: palette.danger_soft})
+        else:
+            self._editor.mark_lines({})
+        log.debug("Probar %s: %s", self._session.current.key, result.kind)
+        self.content_changed.emit()
+
+    def _clear_trial(self) -> None:
+        """Al editar, el resultado de la última prueba deja de valer."""
+        if not self._trial.isHidden():
+            self._trial.hide()
+            if self._can_answer():
+                self._editor.mark_lines({})
+            self.content_changed.emit()
+
+    def _fix(self) -> CodeFix:
+        assert self._original is not None
+        return CodeFix(self.edited_code(), self._original, self._first_line, self._file_text)
+
     def _confirm(self) -> None:
         if self._session is not None and self._session.is_answered:
             self._go_next()
@@ -234,8 +316,7 @@ class FixCodeView(QWidget):
 
     def _answer(self) -> None:
         if self._can_answer() and self._original is not None:
-            fix = CodeFix(self.edited_code(), self._original, self._first_line, self._file_text)
-            evaluation = self._session.answer(fix)
+            evaluation = self._session.answer(self._fix())
             self.answered.emit(evaluation)
             self._reveal(evaluation)
 
@@ -260,6 +341,8 @@ class FixCodeView(QWidget):
         elif evaluation.outcome is Outcome.CORRECT:
             self._editor.mark_lines({mutation.line: palette.success_soft})
         self._check.hide()
+        self._try_button.hide()
+        self._trial.hide()
         self._reset.setEnabled(False)
         self._dont_know.setEnabled(False)
         self._score.setText(f"{self._session.correct_count} correctas")

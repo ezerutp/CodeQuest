@@ -68,6 +68,7 @@ class CodeEditor(QPlainTextEdit):
     """
 
     submit_requested = Signal()  # Ctrl+Enter: "Comprobar" sin soltar el teclado
+    try_requested = Signal()  # Ctrl+Shift+Enter: "Probar" sin enviar la respuesta
 
     def __init__(self, parent: QWidget | None = None, read_only: bool = True) -> None:
         super().__init__(parent)
@@ -219,7 +220,10 @@ class CodeEditor(QPlainTextEdit):
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         if (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
                 and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-            self.submit_requested.emit()
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self.try_requested.emit()
+            else:
+                self.submit_requested.emit()
             return
         if self.isReadOnly():
             super().keyPressEvent(event)

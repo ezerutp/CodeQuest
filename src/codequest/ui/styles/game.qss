@@ -75,3 +75,10 @@ QFrame#Card[variant="ai"] {
 #SelectedLine { color: ${text_muted}; font-size: 13px; }
 
 #ScoreValue { font-size: 44px; font-weight: 800; }
+
+/* Corrige el código: resultado de «Probar» (no cuenta como respuesta) */
+#TrialResult { font-size: 14px; font-weight: 600; }
+#TrialResult[tone="success"] { color: ${success}; }
+#TrialResult[tone="danger"] { color: ${danger}; }
+#TrialResult[tone="warning"] { color: ${warning}; }
+#TrialResult[tone="info"] { color: ${text_muted}; }
