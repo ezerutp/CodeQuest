@@ -208,3 +208,10 @@ class BackgroundTask(QObject):
             self._thread.wait()
         self._thread = None
         self._worker = None
+
+
+class SignalRelay(QObject):
+    """Lleva valores de un hilo de trabajo al hilo principal: se crea en el hilo principal y su
+    `emitted.emit` se pasa como callback al servicio; Qt entrega la señal en el hilo del receptor."""
+
+    emitted = Signal(object)

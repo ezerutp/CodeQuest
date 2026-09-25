@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 
 from codequest.core.ai.availability import AIStatus
 from codequest.core.analysis.roles import ComponentRole
+from codequest.core.lsp.jdtls import DOWNLOAD_SIZE_MB
+from codequest.core.lsp.models import ServerState, ServerStatus
 from codequest.ui.theme import current_palette
 
 
@@ -18,6 +20,26 @@ def ai_indicator(ai: AIStatus, enabled: bool = True) -> tuple[str, str]:
     if ai.provider:
         return f"{ai.provider}: falta configuración", "warn"
     return "Modo local", "off"
+
+
+def language_server_indicator(status: ServerStatus) -> tuple[str, str, str]:
+    """(texto, estado, detalle) del servidor de lenguaje Java para un StatusIndicator."""
+    match status.state:
+        case ServerState.NOT_INSTALLED:
+            return "No instalado", "off", (
+                f"Descárgalo para ver sugerencias mientras escribes código, como en VS Code. Son unos "
+                f"{DOWNLOAD_SIZE_MB} MB y se guardan en la carpeta de datos de CodeQuest.")
+        case ServerState.NO_JAVA:
+            return "Falta Java", "warn", status.detail
+        case ServerState.STARTING:
+            return "Iniciando…", "warn", status.detail or "La primera vez puede tardar unos minutos."
+        case ServerState.READY:
+            return "Listo", "on", "Las sugerencias están disponibles en los ejercicios de este proyecto."
+        case ServerState.FAILED:
+            return "No se pudo iniciar", "warn", f"{status.detail}. Hay más detalles en el registro (logs)."
+        case _:
+            detail = f" ({status.detail})" if status.detail else ""
+            return "Instalado", "off", f"Se inicia al abrir un proyecto Java{detail}."
 
 
 # (singular, plural) por rol, para textos como "3 Enums" o "1 Excepción".

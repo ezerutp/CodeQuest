@@ -24,9 +24,13 @@ from codequest.core.analysis.package_tree import display_name
 from codequest.core.games.base import Evaluation
 from codequest.core.games.catalog import MULTIPLE_CHOICE, mode_info
 from codequest.core.knowledge.models import ConceptSource
+from codequest.core.lsp.jdtls import DOWNLOAD_SIZE_MB, JDTLS_VERSION, MIN_JAVA_VERSION
+from codequest.core.lsp.models import ServerState, ServerStatus
+from codequest.core.persistence.progress import project_id_for
 from codequest.core.project.models import ProjectInfo
 from codequest.core.settings import Settings, SettingsStore
 from codequest.services.explain_service import ExplainService
+from codequest.services.java_language_service import JavaLanguageService, LanguageServerCancelled
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.progress_service import ProgressService
@@ -41,7 +45,7 @@ from codequest.ui.pages.learn.page import LearnPage
 from codequest.ui.pages.progress.page import ProgressPage
 from codequest.ui.pages.settings.page import DataPaths, SettingsPage
 from codequest.ui.widgets.code_editor import set_editor_font_size
-from codequest.ui.workers import AnalysisRunner, BackgroundTask
+from codequest.ui.workers import AnalysisRunner, BackgroundTask, SignalRelay, TaskFunction
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +54,7 @@ class MainWindow(QMainWindow):
                  learning: LearningService | None = None, knowledge_dir: Path | None = None,
                  knowledge: KnowledgeService | None = None, explain: ExplainService | None = None,
                  progress: ProgressService | None = None, settings_store: SettingsStore | None = None,
-                 data_paths: DataPaths | None = None) -> None:
+                 data_paths: DataPaths | None = None, java_ls: JavaLanguageService | None = None) -> None:
         super().__init__()
         self._settings_store = settings_store
         self._settings = settings_store.load() if settings_store else Settings()
@@ -118,7 +122,10 @@ class MainWindow(QMainWindow):
             lambda feedback: self._grading_key and self._learn.apply_feedback(self._grading_key, feedback))
         self._grade_task.failed.connect(
             lambda message: self._grading_key and self._learn.show_grading_error(self._grading_key, message))
-        self._settings_page = SettingsPage(AVAILABLE_MODELS, data_paths or DataPaths(None, knowledge_dir, None, None))
+        self._settings_page = SettingsPage(AVAILABLE_MODELS, data_paths or DataPaths(None, knowledge_dir, None, None),
+                                           language_server=java_ls is not None)
+        self._settings_page.jdtls_install_requested.connect(self._install_jdtls)
+        self._settings_page.jdtls_uninstall_requested.connect(self._uninstall_jdtls)
         self._settings_page.ai_enabled_changed.connect(self._set_ai_enabled)
         self._settings_page.ai_model_changed.connect(self._set_ai_model)
         self._settings_page.reset_progress_requested.connect(self._reset_progress)
@@ -134,6 +141,21 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._sidebar)
         layout.addWidget(self._stack, 1)
         self.setCentralWidget(central)
+
+        # Servidor de lenguaje Java (opcional): una tarea a la vez; la siguiente espera en `_ls_pending`.
+        self._java_ls = java_ls
+        self._ls_status = ServerStatus(ServerState.STOPPED)
+        self._ls_pending: TaskFunction | None = None
+        self._ls_relay = SignalRelay(self)
+        self._ls_relay.emitted.connect(self._on_ls_status)
+        self._ls_task = BackgroundTask(self)
+        self._ls_task.finished.connect(self._on_ls_task_finished)
+        self._ls_task.failed.connect(self._on_ls_task_failed)
+        self._ls_install = BackgroundTask(self)
+        self._ls_install.progress.connect(
+            lambda done, total: self._settings_page.set_language_server(self._ls_status, (done, total)))
+        self._ls_install.finished.connect(lambda _: self._sync_language_server())
+        self._ls_install.failed.connect(self._on_jdtls_install_failed)
 
         self._runner = AnalysisRunner(service, self)
         self._runner.started.connect(self._dashboard.show_analysis_started)
@@ -236,6 +258,7 @@ class MainWindow(QMainWindow):
         else:
             self._runner.cancel()
             self._dashboard.show_analysis_unavailable()
+        self._sync_language_server()
 
     def _on_analysis_finished(self, model: ProjectModel) -> None:
         self._model = model
@@ -245,6 +268,89 @@ class MainWindow(QMainWindow):
         for page in self._pages.values():
             page.set_model(model)
         self._refresh_knowledge()
+        self._sync_language_server()
+
+    # --- servidor de lenguaje Java (jdtls) ---------------------------------------------
+
+    def _sync_language_server(self) -> None:
+        """Arranca jdtls para el proyecto analizado; si no hay proyecto Java, lo para y solo comprueba
+        si está instalado y hay Java. Se llama al cambiar de proyecto y tras instalar."""
+        service = self._java_ls
+        if service is None:
+            return
+        project = self._context.project if self._model is not None and self._context.project.is_supported else None
+        if project is None:
+            self._run_language_task(lambda _progress, _cancel: (service.stop(), service.check())[1])
+            return
+        project_id = project_id_for(project)
+
+        def start(_progress: object, cancel: object) -> ServerStatus | None:
+            try:
+                return service.start(project.root, project_id, on_status=self._ls_relay.emitted.emit,
+                                     cancel=cancel)  # type: ignore[arg-type]
+            except LanguageServerCancelled:
+                return None
+
+        self._run_language_task(start)
+
+    def _run_language_task(self, function: TaskFunction) -> None:
+        if self._ls_task.is_running:  # p. ej. otro proyecto mientras jdtls arrancaba
+            self._ls_pending = function
+            self._ls_task.cancel()
+        else:
+            self._ls_task.start(function)
+
+    def _on_ls_task_finished(self, status: ServerStatus | None) -> None:
+        if status is not None:
+            self._on_ls_status(status)
+        self._start_pending_language_task()
+
+    def _on_ls_task_failed(self, message: str) -> None:
+        self._on_ls_status(ServerStatus(ServerState.FAILED, message))
+        self._start_pending_language_task()
+
+    def _start_pending_language_task(self) -> None:
+        # El hilo de la tarea anterior termina justo después de su señal: se espera a la vuelta del bucle.
+        if self._ls_pending is not None:
+            function, self._ls_pending = self._ls_pending, None
+            QTimer.singleShot(0, lambda: self._run_language_task(function))
+
+    def _on_ls_status(self, status: ServerStatus) -> None:
+        self._ls_status = status
+        if not self._ls_install.is_running:
+            self._settings_page.set_language_server(status)
+
+    def _install_jdtls(self) -> None:
+        if self._java_ls is None or self._ls_install.is_running or not confirm(
+            self, "Autocompletado de Java", f"¿Descargar jdtls {JDTLS_VERSION}? Son unos {DOWNLOAD_SIZE_MB} MB.",
+            details="Se descarga de download.eclipse.org (proyecto Eclipse) y se guarda en la carpeta de datos "
+                    f"de CodeQuest. Para usarlo necesitas Java {MIN_JAVA_VERSION} o superior.",
+            confirm_text="Descargar", icon_name="download",
+        ):
+            return
+        installation = self._java_ls.installation
+        self._settings_page.set_language_server(self._ls_status, (0, 0))
+        self._ls_install.start(lambda progress, cancel: installation.install(progress, cancel))
+
+    def _on_jdtls_install_failed(self, message: str) -> None:
+        self._settings_page.set_language_server(self._ls_status)
+        warn(self, "No se pudo descargar jdtls.", details=message)
+
+    def _uninstall_jdtls(self) -> None:
+        service = self._java_ls
+        if service is None or not confirm(
+            self, "Quitar jdtls", "¿Quitar jdtls de este equipo?",
+            details="Dejarás de ver sugerencias al escribir código. Puedes volver a descargarlo cuando quieras.",
+            confirm_text="Quitar", icon_name="delete",
+        ):
+            return
+
+        def uninstall(_progress: object, _cancel: object) -> ServerStatus:
+            service.stop()
+            service.installation.uninstall()
+            return service.check()
+
+        self._run_language_task(uninstall)
 
     # --- conocimiento e IA ---------------------------------------------------------
 
@@ -431,4 +537,8 @@ class MainWindow(QMainWindow):
         self._ai_task.shutdown()
         self._explain_task.shutdown()
         self._grade_task.shutdown()
+        self._ls_install.shutdown()
+        self._ls_task.shutdown()
+        if self._java_ls is not None:
+            self._java_ls.stop()
         super().closeEvent(event)

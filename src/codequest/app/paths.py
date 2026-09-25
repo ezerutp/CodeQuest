@@ -25,5 +25,10 @@ def settings_path() -> Path:
     return data_dir() / "settings.json"
 
 
+def jdtls_dir() -> Path:
+    """jdtls (servidor de lenguaje Java) y, por proyecto, su copia espejo y su espacio de trabajo."""
+    return data_dir() / "jdtls"
+
+
 def log_dir() -> Path:
     return Path(user_log_dir(APP_SLUG, appauthor=False))
