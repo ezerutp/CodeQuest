@@ -225,12 +225,25 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     reglas de Alternativas para encontrar el uso real y hace una pregunta por comparación y clase.
     La pregunta lleva el concepto ancla con el contenido de la comparación (`as_concept`): así el
     acierto cuenta para ese concepto y el modo se juega en la vista de Alternativas sin UI nueva.
+34. **Servidor de lenguaje Java: jdtls (GCQ-23).** CodeQuest nació para Java y Spring Boot, así que
+    el autocompletado usa el mismo servidor que VS Code (jdtls, Eclipse) en vez de uno propio: conoce
+    las dependencias de Maven/Gradle (`HttpStatus.` → `NO_CONTENT`…) y da errores de compilación
+    reales. Es opcional: se descarga desde Configuración (versión fija, sha256 verificado, en
+    `platformdirs`) y necesita Java 21+; sin él todo funciona igual. `core/lsp/` tiene un cliente LSP
+    mínimo (JSON-RPC por stdio en un hilo lector) y `JavaLanguageService` lo arranca en un worker tras
+    el análisis. **jdtls escribe `.project`, `.classpath`, `.settings/` y `target/` en la carpeta que
+    importa aunque se le pida lo contrario** (verificado), así que trabaja sobre una copia espejo del
+    proyecto (solo código y archivos de build, actualizada por tamaño y fecha) en
+    `<datos>/jdtls/projects/<id>/`; el texto editado se le envía en memoria. Otros lenguajes siguen
+    fuera de alcance: la prioridad es la experiencia Java/Spring.
 
 ### Seguridad sobre el repositorio
 
 - El núcleo solo **lee** archivos del proyecto (`Path.read_text`). No existe ninguna
   función de escritura sobre el proyecto en el MVP.
 - “Corrige el código” trabaja sobre una **copia en memoria** del fragmento.
+- jdtls nunca abre el proyecto real: importa una copia espejo en la carpeta de datos de CodeQuest
+  (decisión 34), porque escribe metadatos y `target/` en la carpeta que importa.
 - Si en el futuro se ofrece “aplicar cambio al archivo real”, pasará por un único
   componente (`WorkspaceWriter`) que exige confirmación explícita y muestra un diff.
 - La API key solo se lee de `ANTHROPIC_API_KEY`; nunca se imprime, registra ni guarda.
@@ -280,6 +293,13 @@ Estado: ✅ página Progreso (GCQ-10) · ✅ Configuración (GCQ-11) · ✅ modo
 Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores dentro de métodos (GCQ-17) · ✅ Corrige el código (GCQ-18) · ✅ Comparaciones (GCQ-19). **v0.3 completo.**
 - Modos **Encuentra el error** (mutaciones y evaluación locales) y **Corrige el código**.
 - Modo **Comparaciones** basado en tecnologías detectadas.
+
+### v0.4 — “Un editor de verdad”
+
+Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23).
+- Descarga y arranque de jdtls sobre una copia espejo del proyecto (GCQ-23).
+- Sugerencias al escribir `.` o pulsar Ctrl+Espacio en el editor de los ejercicios (GCQ-24).
+- «Probar» muestra los errores de compilación de jdtls (GCQ-25).
 
 ### v1.0 — “Plataforma”
 - Soporte multi-módulo robusto.

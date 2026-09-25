@@ -9,13 +9,15 @@ from codequest import __version__
 from codequest.app.constants import APP_NAME, APP_SLUG, APP_TAGLINE
 from codequest.app.context import AppContext
 from codequest.app.logging_setup import setup_logging
-from codequest.app.paths import database_path, knowledge_dir, log_dir, settings_path
+from codequest.app.paths import database_path, jdtls_dir, knowledge_dir, log_dir, settings_path
 from codequest.core.ai.availability import detect_ai_status
 from codequest.core.ai.factory import create_provider
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.store import KnowledgeStore
+from codequest.core.lsp.jdtls import JDTLS_VERSION, JdtlsInstallation
 from codequest.core.settings import SettingsStore
 from codequest.services.explain_service import ExplainService
+from codequest.services.java_language_service import JavaLanguageService
 from codequest.services.knowledge_service import KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.progress_service import ProgressService
@@ -100,7 +102,10 @@ def main(argv: list[str] | None = None) -> int:
     from codequest.ui.pages.settings.page import DataPaths
 
     paths = DataPaths(database=database_path(), knowledge=user_knowledge, logs=log_dir(), settings=settings_path())
+    jdtls = jdtls_dir()
+    java_ls = JavaLanguageService(JdtlsInstallation(jdtls / "server" / JDTLS_VERSION), jdtls / "projects",
+                                  stderr_log=log_dir() / "jdtls.log")
     window = MainWindow(context, service, learning, user_knowledge, knowledge, explain, progress,
-                        settings_store=settings_store, data_paths=paths)
+                        settings_store=settings_store, data_paths=paths, java_ls=java_ls)
     window.show()
     return app.exec()

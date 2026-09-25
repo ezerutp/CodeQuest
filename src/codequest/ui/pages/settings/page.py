@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QWidget,
@@ -20,8 +21,10 @@ from PySide6.QtWidgets import (
 from codequest import __version__
 from codequest.app.constants import APP_NAME
 from codequest.app.context import AppContext
+from codequest.core.lsp.jdtls import DOWNLOAD_SIZE_MB, JDTLS_VERSION
+from codequest.core.lsp.models import ServerState, ServerStatus
 from codequest.core.settings import MAX_FONT_SIZE, MIN_FONT_SIZE, Settings
-from codequest.ui.formatting import ai_detail, ai_indicator, inline_code_html
+from codequest.ui.formatting import ai_detail, ai_indicator, inline_code_html, language_server_indicator
 from codequest.ui.icons import icon
 from codequest.ui.pages.base import Page
 from codequest.ui.theme import current_palette
@@ -56,9 +59,11 @@ class SettingsPage(Page):
     ai_model_changed = Signal(object)  # str | None
     reset_progress_requested = Signal()
     editor_font_size_changed = Signal(int)
+    jdtls_install_requested = Signal()
+    jdtls_uninstall_requested = Signal()
 
     def __init__(self, models: tuple[tuple[str, str, str], ...], paths: DataPaths,
-                 parent: QWidget | None = None) -> None:
+                 language_server: bool = False, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._updating = False
         self.layout_.addWidget(heading("Configuración"))
@@ -66,6 +71,12 @@ class SettingsPage(Page):
 
         self.layout_.addWidget(section_title("Asistente de IA"))
         self.layout_.addWidget(self._build_ai_card(models))
+        self._java_section = section_title("Autocompletado de Java")
+        self._java_card = self._build_java_card()
+        self.layout_.addWidget(self._java_section)
+        self.layout_.addWidget(self._java_card)
+        self._java_section.setVisible(language_server)
+        self._java_card.setVisible(language_server)
         self.layout_.addWidget(section_title("Apariencia"))
         self.layout_.addWidget(self._build_appearance_card())
         self.layout_.addWidget(section_title("Privacidad"))
@@ -105,6 +116,34 @@ class SettingsPage(Page):
         card.body.addLayout(row)
         self._env_note = muted("")
         card.body.addWidget(self._env_note)
+        return card
+
+    def _build_java_card(self) -> Card:
+        card = Card(padding=20)
+        card.body.setSpacing(12)
+        row = QHBoxLayout()
+        self._java_status = StatusIndicator()
+        row.addWidget(self._java_status, 1)
+        self._java_uninstall = QPushButton("Quitar")
+        self._java_uninstall.setIcon(icon("delete"))
+        self._java_uninstall.setProperty("variant", "ghost")
+        self._java_uninstall.setToolTip("Borra jdtls de la carpeta de datos de CodeQuest")
+        self._java_uninstall.clicked.connect(self.jdtls_uninstall_requested)
+        row.addWidget(self._java_uninstall)
+        self._java_install = QPushButton(f"Descargar ({DOWNLOAD_SIZE_MB} MB)")
+        self._java_install.setIcon(icon("download", color="#ffffff", color_on="#ffffff"))
+        self._java_install.setProperty("variant", "primary")
+        self._java_install.clicked.connect(self.jdtls_install_requested)
+        row.addWidget(self._java_install)
+        card.body.addLayout(row)
+        self._java_detail = muted("")
+        card.body.addWidget(self._java_detail)
+        self._java_progress = QProgressBar()
+        self._java_progress.setTextVisible(False)
+        self._java_progress.hide()
+        card.body.addWidget(self._java_progress)
+        card.body.addWidget(muted(f"Usa jdtls {JDTLS_VERSION}, el mismo servidor de Java que VS Code. Trabaja "
+                                  "sobre una copia del proyecto: tu proyecto no se modifica."))
         return card
 
     def _build_appearance_card(self) -> Card:
@@ -235,6 +274,24 @@ class SettingsPage(Page):
         )
         repolish(self._reset)
         self._updating = False
+        self.content_changed()
+
+    def set_language_server(self, status: ServerStatus, download: tuple[int, int] | None = None) -> None:
+        """Estado de jdtls; `download` = (bytes descargados, total) mientras se descarga."""
+        text, state, detail = language_server_indicator(status)
+        if download is not None:
+            done, total = download
+            text, state = "Descargando…", "warn"
+            detail = f"{done / 2**20:.0f} de {total / 2**20:.0f} MB" if total else f"{done / 2**20:.0f} MB"
+            self._java_progress.setRange(0, total or 0)
+            self._java_progress.setValue(min(done, total))
+        self._java_status.set_status(text, state)
+        self._java_detail.setText(detail)
+        self._java_progress.setVisible(download is not None)
+        not_installed = status.state is ServerState.NOT_INSTALLED
+        self._java_install.setVisible(not_installed)
+        self._java_install.setEnabled(download is None)
+        self._java_uninstall.setVisible(not not_installed and download is None)
         self.content_changed()
 
     def _on_toggle(self, checked: bool) -> None:

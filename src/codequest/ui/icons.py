@@ -53,6 +53,7 @@ ICONS: dict[str, str] = {
     "chevron-down": "mdi6.chevron-down",
     "chevron-up": "mdi6.chevron-up",
     "delete": "mdi6.trash-can-outline",
+    "download": "mdi6.download",
     "minus": "mdi6.minus",
     "plus": "mdi6.plus",
     "privacy": "mdi6.shield-lock-outline",
