@@ -225,6 +225,10 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     reglas de Alternativas para encontrar el uso real y hace una pregunta por comparación y clase.
     La pregunta lleva el concepto ancla con el contenido de la comparación (`as_concept`): así el
     acierto cuenta para ese concepto y el modo se juega en la vista de Alternativas sin UI nueva.
+33. **«Probar» en Corrige el código (GCQ-22).** Usa la misma evaluación local (`check_fix`) pero sin
+    registrar la respuesta: no cuenta como intento ni pasa al siguiente ejercicio. Dice si hay un error
+    de sintaxis (y en qué línea) o si el error sigue, pero nunca en qué línea está el error original:
+    encontrarlo sigue siendo el ejercicio. Editar el código borra el resultado de la prueba.
 
 ### Seguridad sobre el repositorio
 
