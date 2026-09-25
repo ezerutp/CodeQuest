@@ -65,16 +65,16 @@ def test_start_uses_a_mirror_and_completes_from_memory(tmp_path: Path) -> None:
     assert mirror.as_uri() in received.read_text()  # jdtls importa la copia, nunca el proyecto
     assert project.as_uri() + "/" not in received.read_text()
 
-    items = service.complete("src/main/java/C.java", CONTROLLER, 1, len("    @ResponseStatus(HttpStatus."))
-    assert [item.insert_text for item in items] == ["NO_CONTENT", "OK"]
+    result = service.complete("src/main/java/C.java", CONTROLLER, 1, len("    @ResponseStatus(HttpStatus."))
+    assert [item.insert_text for item in result.items] == ["NO_CONTENT", "OK"]
     edited = CONTROLLER.replace("HttpStatus.", "HttpStatus.O")
-    assert service.complete("src/main/java/C.java", edited, 1, 5) == []  # didChange, no didOpen
+    assert service.complete("src/main/java/C.java", edited, 1, 5).items == ()  # didChange, no didOpen
     assert received.read_text().count("textDocument/didOpen") == 1
     assert (project / "src/main/java/C.java").read_text() == CONTROLLER
 
     assert service.start(project, "abc123") is service.status and len(commands) == 1  # ya en marcha
     service.stop()
-    assert service.status.state is ServerState.STOPPED and service.complete("C.java", "", 0, 0) == []
+    assert service.status.state is ServerState.STOPPED and service.complete("C.java", "", 0, 0).items == ()
 
 
 def test_server_that_dies_while_starting_fails(tmp_path: Path) -> None:

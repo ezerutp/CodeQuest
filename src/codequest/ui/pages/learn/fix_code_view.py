@@ -1,6 +1,7 @@
 """Vista de "Corrige el código": el fragmento real con un error, en un editor para arreglarlo."""
 
 import logging
+from collections.abc import Callable
 from pathlib import PurePosixPath
 
 from PySide6.QtCore import QSize, Qt, Signal
@@ -11,6 +12,8 @@ from codequest.core.analysis.snippets import SnippetRef
 from codequest.core.games.base import Evaluation, GameSession, Outcome
 from codequest.core.games.catalog import mode_title
 from codequest.core.games.fix_code import CodeFix, FixKind, FixResult, check_fix
+from codequest.core.lsp.documents import splice, utf16_column
+from codequest.core.lsp.models import CompletionList
 from codequest.core.questions.models import Question
 from codequest.ui.icons import icon, icon_label
 from codequest.ui.pages.learn.feedback import FeedbackPanel
@@ -18,13 +21,19 @@ from codequest.ui.pages.learn.game_view import MAX_EDITOR_LINES, SnippetLoader
 from codequest.ui.theme import current_palette
 from codequest.ui.widgets import Card, Chip, CodeEditor, IconText, muted, section_title
 from codequest.ui.widgets.style_utils import set_style_property
+from codequest.ui.workers import LatestOnlyTask
 
 log = logging.getLogger(__name__)
 
 HINT = ("Edita el código aquí mismo. «Probar» (Ctrl+Shift+Enter) revisa tu versión sin enviarla; "
         "«Comprobar» (Ctrl+Enter) la envía. Tu archivo no se modifica.")
+COMPLETION_HINT = " Escribe «.» o pulsa Ctrl+Espacio para ver sugerencias."
 STALE_HINT = "Este fragmento cambió desde el análisis: pulsa «No sé» para ver el error."
 EXTRA_LINES = 2  # espacio para que el estudiante añada líneas sin que el editor salte
+
+# (archivo relativo al proyecto, texto completo en memoria, línea, columna UTF-16) -> sugerencias.
+# Bloquea: se llama desde un worker.
+CompletionSource = Callable[[str, str, int, int], CompletionList]
 
 
 def result_title(result: FixResult | None, line: int) -> str:
@@ -76,9 +85,14 @@ class FixCodeView(QWidget):
     content_changed = Signal()
     explain_requested = Signal(object)  # Evaluation
 
-    def __init__(self, load_snippet: SnippetLoader, parent: QWidget | None = None) -> None:
+    def __init__(self, load_snippet: SnippetLoader, complete: CompletionSource | None = None,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._load_snippet = load_snippet
+        self._complete = complete
+        self._completion_available = False
+        self._completions = LatestOnlyTask(self)
+        self._completions.finished.connect(lambda answer: self._editor.show_completions(*answer))
         self._session: GameSession | None = None
         self._original: str | None = None  # fragmento real; None si no se pudo preparar el ejercicio
         self._mutated = ""
@@ -108,6 +122,7 @@ class FixCodeView(QWidget):
         self._editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._editor.submit_requested.connect(self._confirm)
         self._editor.try_requested.connect(self._try)
+        self._editor.completion_requested.connect(self._request_completions)
         self._editor.textChanged.connect(self._clear_trial)
         card.body.addWidget(self._editor)
         card.body.addWidget(self._build_trial())
@@ -197,6 +212,35 @@ class FixCodeView(QWidget):
     def set_ai_available(self, available: bool, provider_name: str | None) -> None:
         self._feedback.set_ai_available(available, provider_name)
 
+    # --- sugerencias (jdtls, opcional) --------------------------------------------------
+
+    def set_completion_available(self, available: bool) -> None:
+        self._completion_available = available and self._complete is not None
+        self._editor.set_completion_enabled(self._completion_available)
+        if self._session is not None and not self._session.is_answered and self._original is not None:
+            self._hint.setText(self._hint_text())
+            self.content_changed.emit()
+
+    def _hint_text(self) -> str:
+        return HINT + (COMPLETION_HINT if self._completion_available else "")
+
+    def _request_completions(self, token: int) -> None:
+        """El editor pide sugerencias: se le envían a jdtls con el fragmento editado dentro de su
+        archivo (en memoria) y la posición real del cursor en ese archivo."""
+        complete, question = self._complete, self._session.current if self._session else None
+        if complete is None or question is None or self._original is None or self._file_text is None:
+            return
+        edited = self.edited_code()
+        row, column = self._editor.cursor_position()
+        text = splice(self._file_text, self._first_line, self._original, edited)
+        line = self._first_line - 1 + row
+        character = utf16_column(edited.split("\n")[row], column)
+        path = question.snippet.file
+        self._completions.submit(lambda _progress, _cancel: (token, complete(path, text, line, character)))
+
+    def shutdown(self) -> None:
+        self._completions.shutdown()
+
     def show_ai_loading(self, question_key: str) -> None:
         if self._feedback.current_key() == question_key:
             self._feedback.show_ai_loading()
@@ -239,7 +283,7 @@ class FixCodeView(QWidget):
         self._prepare(question)
         ready = self._original is not None
         self._editor.set_read_only(not ready)
-        self._hint.setText(HINT if ready else STALE_HINT)
+        self._hint.setText(self._hint_text() if ready else STALE_HINT)
         self._check.setEnabled(ready)
         self._check.show()
         self._try_button.setEnabled(ready)

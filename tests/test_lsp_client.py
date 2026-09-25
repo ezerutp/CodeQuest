@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from codequest.core.lsp.client import LspClient, LspError, encode_message, read_message
-from codequest.core.lsp.models import completion_items
+from codequest.core.lsp.models import completion_items, completion_list
 
 SERVER = Path(__file__).parent / "fixtures" / "fake_lsp_server.py"
 
@@ -49,3 +49,10 @@ def test_completion_items_accept_plain_lists_and_skip_garbage() -> None:
     items = completion_items([{"label": "save(S entity) : S", "kind": 2, "filterText": "save"}, {"kind": 2}, "x"])
     assert len(items) == 1 and items[0].insert_text == "save" and items[0].kind == "method"
     assert completion_items(None) == []
+
+
+def test_completion_list_is_sorted_by_relevance_and_keeps_incomplete() -> None:
+    result = completion_list({"isIncomplete": True, "items": [
+        {"label": "b", "sortText": "2"}, {"label": "B2", "sortText": "1"}, {"label": "a", "sortText": "2"}]})
+    assert [item.label for item in result.items] == ["B2", "a", "b"] and result.is_incomplete
+    assert completion_list([{"label": "x"}]).is_incomplete is False

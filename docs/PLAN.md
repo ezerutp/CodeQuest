@@ -240,6 +240,15 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     proyecto (solo código y archivos de build, actualizada por tamaño y fecha) en
     `<datos>/jdtls/projects/<id>/`; el texto editado se le envía en memoria. Otros lenguajes siguen
     fuera de alcance: la prioridad es la experiencia Java/Spring.
+35. **Sugerencias en el editor (GCQ-24).** `CodeEditor` no sabe de jdtls: con «.» o Ctrl+Espacio
+    emite `completion_requested(número)` y quien lo usa responde con `show_completions`; las respuestas
+    de peticiones viejas se descartan. La lista es un `QCompleter` (`ui/widgets/code_completion.py`)
+    que filtra en local con lo escrito desde el inicio de la palabra; si jdtls la recortó (devuelve 50
+    como máximo, `isIncomplete`), se vuelve a pedir con el texto nuevo, como VS Code. «Corrige el
+    código» envía el fragmento editado dentro de su archivo completo (`core/lsp/documents.splice`, en
+    memoria) con la posición real del cursor (columna en UTF-16, como pide LSP) desde un worker que
+    solo guarda la última petición pendiente (`LatestOnlyTask`). Se inserta solo el nombre (sin
+    paréntesis ni argumentos): el estudiante escribe el resto.
 
 ### Seguridad sobre el repositorio
 
@@ -300,7 +309,7 @@ Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores
 
 ### v0.4 — “Un editor de verdad”
 
-Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23).
+Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23) · ✅ sugerencias en el editor (GCQ-24).
 - Descarga y arranque de jdtls sobre una copia espejo del proyecto (GCQ-23).
 - Sugerencias al escribir `.` o pulsar Ctrl+Espacio en el editor de los ejercicios (GCQ-24).
 - «Probar» muestra los errores de compilación de jdtls (GCQ-25).

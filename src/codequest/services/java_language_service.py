@@ -15,7 +15,7 @@ from typing import Any
 from codequest.core.lsp.client import LspClient, LspError
 from codequest.core.lsp.jdtls import MIN_JAVA_VERSION, JavaRuntime, JdtlsInstallation, find_java
 from codequest.core.lsp.mirror import sync_mirror
-from codequest.core.lsp.models import CompletionItem, ServerState, ServerStatus, completion_items
+from codequest.core.lsp.models import CompletionList, ServerState, ServerStatus, completion_list
 
 log = logging.getLogger(__name__)
 
@@ -106,13 +106,13 @@ class JavaLanguageService:
             client = self._client
         return self._wait_ready(client, cancel)
 
-    def complete(self, relative_path: str, text: str, line: int, column: int) -> list[CompletionItem]:
-        """Sugerencias en `line`/`column` (0-based) del archivo con el texto `text`, que está en memoria:
-        el archivo del proyecto (y de la copia) no cambia."""
+    def complete(self, relative_path: str, text: str, line: int, column: int) -> CompletionList:
+        """Sugerencias en `line`/`column` (0-based; la columna en unidades UTF-16, como pide LSP) del
+        archivo con el texto `text`, que está en memoria: el archivo del proyecto (y de la copia) no cambia."""
         with self._lock:
             client, mirror = self._client, self._mirror
             if client is None or mirror is None or not self._ready.is_set():
-                return []
+                return CompletionList()
             uri = (mirror / relative_path).as_uri()
             version = self._versions.get(uri, 0) + 1
             self._versions[uri] = version
@@ -128,8 +128,8 @@ class JavaLanguageService:
                 timeout=COMPLETION_TIMEOUT_S)
         except LspError as exc:
             log.info("Sin sugerencias de jdtls: %s", exc)
-            return []
-        return completion_items(result)
+            return CompletionList()
+        return completion_list(result)
 
     def stop(self) -> None:
         with self._lock:

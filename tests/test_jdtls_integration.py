@@ -52,7 +52,7 @@ def test_real_jdtls_suggests_spring_constants_without_touching_the_project(tmp_p
         line = edited.split("\n").index("    @ResponseStatus(HttpStatus.)")
         items = service.complete("src/main/java/com/example/demo/CategoriaController.java", edited,
                                  line, len("    @ResponseStatus(HttpStatus."))
-        assert "NO_CONTENT" in {item.insert_text for item in items}
+        assert "NO_CONTENT" in {item.insert_text for item in items.items}
     finally:
         service.stop()
     assert sorted(p.relative_to(project) for p in project.rglob("*")) == before

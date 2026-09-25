@@ -30,12 +30,26 @@ class CompletionItem:
     insert_text: str  # lo que se escribe: "eliminar"
     kind: str = "text"  # method, field, class, constant…
     detail: str = ""
+    sort_text: str = ""  # orden de relevancia que propone el servidor
+
+
+@dataclass(frozen=True, slots=True)
+class CompletionList:
+    items: tuple[CompletionItem, ...] = ()
+    is_incomplete: bool = False  # el servidor recortó la lista: pedirla otra vez al escribir más
 
 
 # Tipos de CompletionItemKind del protocolo LSP que mostramos con un nombre propio.
 _KINDS = {2: "method", 3: "function", 4: "constructor", 5: "field", 6: "variable", 7: "class", 8: "interface",
           9: "module", 10: "property", 13: "enum", 14: "keyword", 15: "snippet", 20: "enum_member",
           21: "constant", 25: "type_parameter"}
+
+
+def completion_list(result: Any) -> CompletionList:
+    """Convierte la respuesta de `textDocument/completion`, ordenada por relevancia."""
+    incomplete = bool(result.get("isIncomplete")) if isinstance(result, dict) else False
+    items = sorted(completion_items(result), key=lambda item: (item.sort_text, item.label.lower()))
+    return CompletionList(tuple(items), incomplete)
 
 
 def completion_items(result: Any) -> list[CompletionItem]:
@@ -52,5 +66,6 @@ def completion_items(result: Any) -> list[CompletionItem]:
             insert_text=str(text or entry.get("insertText") or entry.get("filterText") or entry["label"]),
             kind=_KINDS.get(entry.get("kind", 0), "text"),
             detail=str(entry.get("detail") or ""),
+            sort_text=str(entry.get("sortText") or ""),
         ))
     return items
