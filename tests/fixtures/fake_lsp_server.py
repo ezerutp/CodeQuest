@@ -32,6 +32,23 @@ def send(message):
 
 
 documents = {}
+had_errors = set()
+
+
+def publish(uri):
+    """Como jdtls: publica si hay errores o si los había (para borrarlos); si sigue limpio, nada."""
+    errors = [{"range": {"start": {"line": i, "character": 0}, "end": {"line": i, "character": 1}},
+               "severity": 1, "message": "FOO cannot be resolved or is not a field"}
+              for i, line in enumerate(documents[uri].split("\n")) if "FOO" in line]
+    errors += [{"range": {"start": {"line": i, "character": 0}, "end": {"line": i, "character": 1}},
+                "severity": 2, "message": "unused"} for i, line in enumerate(documents[uri].split("\n"))
+               if "unused" in line]
+    if errors or uri in had_errors:
+        send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+              "params": {"uri": uri, "diagnostics": errors}})
+    had_errors.discard(uri)
+    if errors:
+        had_errors.add(uri)
 while (message := read()) is not None:
     method = message.get("method")
     if RECEIVED is not None:
@@ -47,8 +64,10 @@ while (message := read()) is not None:
         send({"jsonrpc": "2.0", "method": "language/status", "params": {"type": "ServiceReady"}})
     elif method == "textDocument/didOpen":
         documents[message["params"]["textDocument"]["uri"]] = message["params"]["textDocument"]["text"]
+        publish(message["params"]["textDocument"]["uri"])
     elif method == "textDocument/didChange":
         documents[message["params"]["textDocument"]["uri"]] = message["params"]["contentChanges"][0]["text"]
+        publish(message["params"]["textDocument"]["uri"])
     elif method == "textDocument/completion":
         uri = message["params"]["textDocument"]["uri"]
         position = message["params"]["position"]

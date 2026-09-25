@@ -12,8 +12,8 @@ from codequest.core.analysis.snippets import SnippetRef
 from codequest.core.games.base import Evaluation, GameSession, Outcome
 from codequest.core.games.catalog import mode_title
 from codequest.core.games.fix_code import CodeFix, FixKind, FixResult, check_fix
-from codequest.core.lsp.documents import splice, utf16_column
-from codequest.core.lsp.models import CompletionList
+from codequest.core.lsp.documents import new_errors, splice, utf16_column
+from codequest.core.lsp.models import CompletionList, Diagnostic
 from codequest.core.questions.models import Question
 from codequest.ui.icons import icon, icon_label
 from codequest.ui.pages.learn.feedback import FeedbackPanel
@@ -34,6 +34,10 @@ EXTRA_LINES = 2  # espacio para que el estudiante añada líneas sin que el edit
 # (archivo relativo al proyecto, texto completo en memoria, línea, columna UTF-16) -> sugerencias.
 # Bloquea: se llama desde un worker.
 CompletionSource = Callable[[str, str, int, int], CompletionList]
+# (archivo relativo, texto completo en memoria) -> errores de compilación; None si jdtls no está listo.
+DiagnosticsSource = Callable[[str, str], tuple[Diagnostic, ...] | None]
+# Resultados de «Probar» que merecen preguntar al compilador (los demás ya lo dicen todo).
+COMPILE_CHECKED = (FixKind.OTHER_CHANGES, FixKind.STILL_BROKEN)
 
 
 def result_title(result: FixResult | None, line: int) -> str:
@@ -86,13 +90,20 @@ class FixCodeView(QWidget):
     explain_requested = Signal(object)  # Evaluation
 
     def __init__(self, load_snippet: SnippetLoader, complete: CompletionSource | None = None,
-                 parent: QWidget | None = None) -> None:
+                 diagnose: DiagnosticsSource | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._load_snippet = load_snippet
         self._complete = complete
+        self._diagnose = diagnose
         self._completion_available = False
+        self._compiler_ready = False
         self._completions = LatestOnlyTask(self)
         self._completions.finished.connect(lambda answer: self._editor.show_completions(*answer))
+        # Errores de compilación: los de la versión con el error (de partida) y los de cada «Probar».
+        self._compiler = LatestOnlyTask(self)
+        self._compiler.finished.connect(self._on_compiled)
+        self._baseline: tuple[Diagnostic, ...] | None = None
+        self._trial_token = 0
         self._session: GameSession | None = None
         self._original: str | None = None  # fragmento real; None si no se pudo preparar el ejercicio
         self._mutated = ""
@@ -166,7 +177,13 @@ class FixCodeView(QWidget):
         self._trial_text = QLabel()
         self._trial_text.setObjectName("TrialResult")
         self._trial_text.setWordWrap(True)
-        row.addWidget(self._trial_text, 1, Qt.AlignmentFlag.AlignVCenter)
+        texts = QVBoxLayout()
+        texts.setSpacing(2)
+        texts.addWidget(self._trial_text)
+        self._compile_note = muted("")  # "Revisando con el compilador…" / "no encontró errores"
+        self._compile_note.hide()
+        texts.addWidget(self._compile_note)
+        row.addLayout(texts, 1)
         self._trial.hide()
         return self._trial
 
@@ -214,11 +231,14 @@ class FixCodeView(QWidget):
 
     # --- sugerencias (jdtls, opcional) --------------------------------------------------
 
-    def set_completion_available(self, available: bool) -> None:
-        self._completion_available = available and self._complete is not None
+    def set_language_server_ready(self, ready: bool) -> None:
+        """jdtls listo (o no): sugerencias en el editor y errores de compilación en «Probar»."""
+        self._completion_available = ready and self._complete is not None
         self._editor.set_completion_enabled(self._completion_available)
+        self._compiler_ready = ready and self._diagnose is not None
         if self._session is not None and not self._session.is_answered and self._original is not None:
             self._hint.setText(self._hint_text())
+            self._request_baseline()
             self.content_changed.emit()
 
     def _hint_text(self) -> str:
@@ -238,7 +258,72 @@ class FixCodeView(QWidget):
         path = question.snippet.file
         self._completions.submit(lambda _progress, _cancel: (token, complete(path, text, line, character)))
 
+    def _compile_inputs(self) -> tuple[DiagnosticsSource, str, str] | None:
+        """(función, archivo, texto de partida en memoria) si se puede preguntar al compilador."""
+        question = self._session.current if self._session else None
+        if (not self._compiler_ready or self._diagnose is None or question is None or self._original is None
+                or self._file_text is None):
+            return None
+        return self._diagnose, question.snippet.file, splice(self._file_text, self._first_line, self._original,
+                                                             self._mutated)
+
+    def _request_baseline(self) -> None:
+        """Errores de la versión con el error, antes de que el estudiante toque nada: así «Probar» solo
+        muestra los que él introduce y no delata la línea del error original."""
+        inputs = self._compile_inputs()
+        if inputs is None or self._baseline is not None:
+            return
+        diagnose, path, start = inputs
+        key = self._session.current.key
+        self._compiler.submit(lambda _progress, _cancel: ("baseline", key, diagnose(path, start)))
+
+    def _request_compile(self) -> None:
+        inputs = self._compile_inputs()
+        if inputs is None:
+            return
+        diagnose, path, start = inputs
+        edited = self.edited_code()
+        text = splice(self._file_text, self._first_line, self._original, edited)
+        token, key, baseline = self._trial_token, self._session.current.key, self._baseline
+
+        def compile_(_progress: object, _cancel: object) -> tuple:
+            base = baseline if baseline is not None else diagnose(path, start)
+            return "trial", (token, key), base, diagnose(path, text), edited.count("\n") + 1
+
+        self._compile_note.setText("Revisando con el compilador…")
+        self._compile_note.show()
+        self._compiler.submit(compile_)
+
+    def _on_compiled(self, answer: tuple) -> None:
+        question = self._session.current if self._session else None
+        if question is None:
+            return
+        if answer[0] == "baseline":
+            _, key, errors = answer
+            if key == question.key and errors is not None:
+                self._baseline = errors
+            return
+        _, (token, key), baseline, current, line_count = answer
+        if key != question.key:
+            return
+        if baseline is not None and self._baseline is None:
+            self._baseline = baseline
+        if token != self._trial_token or self._trial.isHidden() or not self._can_answer():
+            return
+        if baseline is None or current is None:  # jdtls dejó de estar listo
+            self._compile_note.hide()
+        elif errors := new_errors(current, baseline, self._first_line, line_count):
+            first = errors[0]
+            more = f" (y {len(errors) - 1} más)" if len(errors) > 1 else ""
+            self._show_trial("danger", f"Error de compilación en la línea {first.line}{more}: «{first.message}».",
+                             first.line)
+            self._compile_note.setText("Lo dice el compilador de Java (jdtls).")
+        else:
+            self._compile_note.setText("El compilador no encontró errores nuevos.")
+        self.content_changed.emit()
+
     def shutdown(self) -> None:
+        self._compiler.shutdown()
         self._completions.shutdown()
 
     def show_ai_loading(self, question_key: str) -> None:
@@ -280,6 +365,7 @@ class FixCodeView(QWidget):
         self._progress.setValue(session.position)
         self._score.setText(f"{session.correct_count} correctas")
         self._prompt.setText(question.prompt)
+        self._baseline = None
         self._prepare(question)
         ready = self._original is not None
         self._editor.set_read_only(not ready)
@@ -293,6 +379,7 @@ class FixCodeView(QWidget):
         self._next.hide()
         self._feedback.hide()
         self._editor.setFocus()
+        self._request_baseline()
         self.content_changed.emit()
 
     def _prepare(self, question: Question) -> None:
@@ -325,7 +412,16 @@ class FixCodeView(QWidget):
         if not self._can_answer() or self._original is None:
             return
         result = check_fix(self._session.current, self._fix())
-        tone, text = trial_message(result)
+        self._trial_token += 1
+        self._compile_note.hide()
+        syntax_line = result.error_line if result.kind is FixKind.SYNTAX_ERROR else None
+        self._show_trial(*trial_message(result), syntax_line)
+        if result.kind in COMPILE_CHECKED:
+            self._request_compile()
+        log.debug("Probar %s: %s", self._session.current.key, result.kind)
+        self.content_changed.emit()
+
+    def _show_trial(self, tone: str, text: str, error_line: int | None) -> None:
         palette = current_palette()
         color = {"success": palette.success, "danger": palette.danger,
                  "warning": palette.warning}.get(tone, palette.text_muted)
@@ -333,15 +429,11 @@ class FixCodeView(QWidget):
         self._trial_text.setText(text)
         set_style_property(self._trial_text, "tone", tone)
         self._trial.show()
-        if result.kind is FixKind.SYNTAX_ERROR and result.error_line is not None:
-            self._editor.mark_lines({result.error_line: palette.danger_soft})
-        else:
-            self._editor.mark_lines({})
-        log.debug("Probar %s: %s", self._session.current.key, result.kind)
-        self.content_changed.emit()
+        self._editor.mark_lines({error_line: palette.danger_soft} if error_line is not None else {})
 
     def _clear_trial(self) -> None:
         """Al editar, el resultado de la última prueba deja de valer."""
+        self._trial_token += 1  # un resultado del compilador que llegue tarde ya no vale
         if not self._trial.isHidden():
             self._trial.hide()
             if self._can_answer():

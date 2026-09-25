@@ -25,6 +25,28 @@ class ServerStatus:
 
 
 @dataclass(frozen=True, slots=True)
+class Diagnostic:
+    """Un error de compilación de jdtls (líneas 1-based del documento enviado)."""
+
+    line: int
+    message: str
+    is_error: bool = True  # False: aviso (variable sin usar…), que no mostramos
+
+
+def diagnostics(params: Any) -> tuple[Diagnostic, ...]:
+    """Convierte los parámetros de `textDocument/publishDiagnostics`."""
+    raw = params.get("diagnostics", []) if isinstance(params, dict) else []
+    result: list[Diagnostic] = []
+    for entry in raw:
+        try:
+            line = int(entry["range"]["start"]["line"]) + 1
+        except (KeyError, TypeError, ValueError):
+            continue
+        result.append(Diagnostic(line, str(entry.get("message") or ""), entry.get("severity", 1) == 1))
+    return tuple(result)
+
+
+@dataclass(frozen=True, slots=True)
 class CompletionItem:
     label: str  # lo que se muestra: "eliminar(Long id) : void"
     insert_text: str  # lo que se escribe: "eliminar"

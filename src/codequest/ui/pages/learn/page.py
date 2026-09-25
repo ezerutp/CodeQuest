@@ -10,7 +10,7 @@ from codequest.core.games.catalog import EXPLAIN_CODE, FIND_ERROR, FIX_CODE
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.learn.explain_view import ExplainCodeView
 from codequest.ui.pages.learn.find_error_view import FindErrorView
-from codequest.ui.pages.learn.fix_code_view import CompletionSource, FixCodeView
+from codequest.ui.pages.learn.fix_code_view import CompletionSource, DiagnosticsSource, FixCodeView
 from codequest.ui.pages.learn.game_view import GameView, SnippetLoader
 from codequest.ui.pages.learn.summary_view import SummaryView
 from codequest.ui.widgets import Card, IconText, ModeGrid, heading, muted, section_title
@@ -27,7 +27,7 @@ class LearnPage(Page):
     explanation_submitted = Signal(object, str)  # Question, texto del estudiante
 
     def __init__(self, load_snippet: SnippetLoader, complete: CompletionSource | None = None,
-                 parent: QWidget | None = None) -> None:
+                 diagnose: DiagnosticsSource | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._select = QWidget()
         select_layout = QVBoxLayout(self._select)
@@ -56,7 +56,7 @@ class LearnPage(Page):
 
         # Modos que muestran código y dan feedback con FeedbackPanel: misma conexión para todos.
         self._find_error = FindErrorView(load_snippet)
-        self._fix_code = FixCodeView(load_snippet, complete)
+        self._fix_code = FixCodeView(load_snippet, complete, diagnose)
         self._code_views = (self._game, self._find_error, self._fix_code)
         for view in self._code_views[1:]:
             view.finished.connect(self._show_summary)
@@ -80,9 +80,9 @@ class LearnPage(Page):
         self._views = (self._select, *self._code_views, self._explain, self._summary)
         self._show(self._select)
 
-    def set_completion_available(self, available: bool) -> None:
-        """Sugerencias de jdtls en el editor de «Corrige el código» (el único editable)."""
-        self._fix_code.set_completion_available(available)
+    def set_language_server_ready(self, ready: bool) -> None:
+        """jdtls en «Corrige el código» (el único editor editable): sugerencias y errores de compilación."""
+        self._fix_code.set_language_server_ready(ready)
 
     def shutdown(self) -> None:
         self._fix_code.shutdown()
