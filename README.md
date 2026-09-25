@@ -8,9 +8,13 @@ proyectos **Java · Spring Boot · Maven/Gradle**.
 
 Versión actual: **0.4.0**. Ver [docs/PLAN.md](docs/PLAN.md) para la arquitectura y el roadmap.
 
+![Inicio: CodeQuest analiza tu proyecto Spring Boot y te muestra cuánto dominas](docs/images/inicio.png)
+
 ## Modos de juego
 
 Todas las preguntas salen del código de tu proyecto:
+
+![Modos de juego](docs/images/modos.png)
 
 | Modo | Qué haces | IA |
 |------|-----------|----|
@@ -23,6 +27,18 @@ Todas las preguntas salen del código de tu proyecto:
 
 Los errores de *Encuentra el error* y *Corrige el código* se aplican sobre una copia en memoria:
 tu proyecto nunca se modifica.
+
+Cada respuesta viene con la explicación del concepto, una analogía y un enlace a la clase donde lo usas:
+
+| Alternativas | Encuentra el error |
+|:---:|:---:|
+| ![Pregunta de alternativas sobre @Id en una entidad del proyecto](docs/images/alternativas.png) | ![Encuentra el error: @GetMapping en lugar de @PostMapping](docs/images/encuentra-el-error.png) |
+| **Corrige el código** | **Mi proyecto** |
+| ![Corrige el código: editor con «Probar» y «Comprobar»](docs/images/corrige-el-codigo.png) | ![Explorador de clases con anotaciones, campos, métodos y código](docs/images/mi-proyecto.png) |
+
+Y en *Progreso* ves cuánto dominas de tu proyecto, tema por tema:
+
+![Progreso: dominio del proyecto y por tema](docs/images/progreso.png)
 
 ## Autocompletado de Java (opcional)
 
