@@ -15,12 +15,22 @@ from typing import Any
 from codequest.core.lsp.client import LspClient, LspError
 from codequest.core.lsp.jdtls import MIN_JAVA_VERSION, JavaRuntime, JdtlsInstallation, find_java
 from codequest.core.lsp.mirror import sync_mirror
-from codequest.core.lsp.models import CompletionList, ServerState, ServerStatus, completion_list
+from codequest.core.lsp.models import (
+    CompletionList,
+    Diagnostic,
+    ServerState,
+    ServerStatus,
+    completion_list,
+    diagnostics,
+)
 
 log = logging.getLogger(__name__)
 
 READY_TIMEOUT_S = 600  # la primera importación de Maven puede descargar cientos de MB
 COMPLETION_TIMEOUT_S = 10
+# jdtls publica los errores ~2 s después de un cambio y no publica nada si el archivo sigue sin errores:
+# si en este tiempo no llega nada, vale lo último que publicó.
+DIAGNOSTICS_WAIT_S = 5.0
 
 # Ajustes de jdtls: sin compilar (no hace falta para sugerir) y sin tocar la configuración de build.
 SERVER_SETTINGS: dict[str, Any] = {"java": {
@@ -53,6 +63,9 @@ class JavaLanguageService:
         self._project_id: str | None = None
         self._mirror: Path | None = None
         self._versions: dict[str, int] = {}  # uri -> versión del documento abierto
+        self._published = threading.Condition()  # protege _diagnostics y _publications
+        self._diagnostics: dict[str, tuple[Diagnostic, ...]] = {}  # uri -> últimos errores publicados
+        self._publications: dict[str, int] = {}  # uri -> cuántas veces ha publicado
         self._ready = threading.Event()
         self._status = ServerStatus(ServerState.STOPPED)
         self._on_status: StatusCallback | None = None
@@ -110,18 +123,9 @@ class JavaLanguageService:
         """Sugerencias en `line`/`column` (0-based; la columna en unidades UTF-16, como pide LSP) del
         archivo con el texto `text`, que está en memoria: el archivo del proyecto (y de la copia) no cambia."""
         with self._lock:
-            client, mirror = self._client, self._mirror
-            if client is None or mirror is None or not self._ready.is_set():
+            client, uri = self._client, self._send_document(relative_path, text)
+            if client is None or uri is None:
                 return CompletionList()
-            uri = (mirror / relative_path).as_uri()
-            version = self._versions.get(uri, 0) + 1
-            self._versions[uri] = version
-            if version == 1:
-                client.notify("textDocument/didOpen", {"textDocument": {
-                    "uri": uri, "languageId": "java", "version": version, "text": text}})
-            else:
-                client.notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": version},
-                                                         "contentChanges": [{"text": text}]})
         try:
             result = client.request("textDocument/completion", {
                 "textDocument": {"uri": uri}, "position": {"line": line, "character": column}},
@@ -131,17 +135,52 @@ class JavaLanguageService:
             return CompletionList()
         return completion_list(result)
 
+    def diagnostics(self, relative_path: str, text: str, wait: float = DIAGNOSTICS_WAIT_S
+                    ) -> tuple[Diagnostic, ...] | None:
+        """Errores de compilación del archivo con el texto `text` (en memoria). None si jdtls no está
+        listo. Espera a la siguiente publicación de jdtls; si no llega, el estado no cambió."""
+        with self._lock:
+            if self._client is None or self._mirror is None or not self._ready.is_set():
+                return None
+            uri = (self._mirror / relative_path).as_uri()
+            with self._published:
+                seen = self._publications.get(uri, 0)
+            if self._send_document(relative_path, text) is None:
+                return None
+        with self._published:
+            self._published.wait_for(lambda: self._publications.get(uri, 0) > seen, timeout=wait)
+            return self._diagnostics.get(uri, ())
+
     def stop(self) -> None:
         with self._lock:
             client, self._client = self._client, None
             self._project_id = self._mirror = None
             self._ready.clear()
+            with self._published:
+                self._diagnostics.clear()
+                self._publications.clear()
         if client is not None:
             client.close(timeout=3)
             if self._status.state in (ServerState.STARTING, ServerState.READY):
                 self._set_status(ServerStatus(ServerState.STOPPED))
 
     # --- interno --------------------------------------------------------------------
+
+    def _send_document(self, relative_path: str, text: str) -> str | None:
+        """Abre o actualiza el documento en jdtls (con `_lock` tomado). Devuelve su uri."""
+        client, mirror = self._client, self._mirror
+        if client is None or mirror is None or not self._ready.is_set():
+            return None
+        uri = (mirror / relative_path).as_uri()
+        version = self._versions.get(uri, 0) + 1
+        self._versions[uri] = version
+        if version == 1:
+            client.notify("textDocument/didOpen", {"textDocument": {
+                "uri": uri, "languageId": "java", "version": version, "text": text}})
+        else:
+            client.notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": version},
+                                                     "contentChanges": [{"text": text}]})
+        return uri
 
     def _wait_ready(self, client: LspClient, cancel: threading.Event | None) -> ServerStatus:
         waited = 0.0
@@ -159,8 +198,17 @@ class JavaLanguageService:
         return self._set_status(ServerStatus(ServerState.READY))
 
     def _on_notification(self, method: str, params: Any) -> None:
-        """Hilo lector del cliente LSP: solo nos interesa saber cuándo termina de importar el proyecto."""
-        if method != "language/status" or not isinstance(params, dict):
+        """Hilo lector del cliente LSP: cuándo termina de importar el proyecto y los errores publicados."""
+        if not isinstance(params, dict):
+            return
+        if method == "textDocument/publishDiagnostics":
+            uri = str(params.get("uri"))
+            with self._published:
+                self._diagnostics[uri] = diagnostics(params)
+                self._publications[uri] = self._publications.get(uri, 0) + 1
+                self._published.notify_all()
+            return
+        if method != "language/status":
             return
         if params.get("type") == "ServiceReady":
             self._ready.set()

@@ -88,7 +88,8 @@ class MainWindow(QMainWindow):
         self._add_page(PageId.HOME, self._dashboard)
 
         self._learn = LearnPage(load_snippet=lambda ref: service.read_snippet(self._model, ref),
-                                complete=java_ls.complete if java_ls is not None else None)
+                                complete=java_ls.complete if java_ls is not None else None,
+                                diagnose=java_ls.diagnostics if java_ls is not None else None)
         self._learn.mode_selected.connect(self._start_mode)
         self._learn.play_again.connect(lambda: self._start_round(self._last_scope, self._last_mode))
         self._learn.go_home.connect(lambda: self.show_page(PageId.HOME))
@@ -318,7 +319,7 @@ class MainWindow(QMainWindow):
 
     def _on_ls_status(self, status: ServerStatus) -> None:
         self._ls_status = status
-        self._learn.set_completion_available(status.is_ready)
+        self._learn.set_language_server_ready(status.is_ready)
         if not self._ls_install.is_running:
             self._settings_page.set_language_server(status)
 

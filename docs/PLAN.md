@@ -249,6 +249,15 @@ permite, en el futuro, una versión CLI o web reutilizando el mismo núcleo.
     memoria) con la posición real del cursor (columna en UTF-16, como pide LSP) desde un worker que
     solo guarda la última petición pendiente (`LatestOnlyTask`). Se inserta solo el nombre (sin
     paréntesis ni argumentos): el estudiante escribe el resto.
+36. **Errores de compilación en «Probar» (GCQ-25).** Tras la revisión local, si el resultado es «el
+    error sigue» o «cambiaste otras partes», se pregunta a jdtls (`textDocument/publishDiagnostics`).
+    jdtls publica ~2 s después de un cambio, sin número de versión, y no publica nada si el archivo
+    sigue sin errores: `JavaLanguageService.diagnostics()` espera la siguiente publicación y, si no
+    llega en 5 s, vale la última. Para no delatar la línea del error, al abrir cada ejercicio se
+    calculan en segundo plano los errores de la versión con el error y «Probar» solo muestra los
+    **nuevos** dentro del fragmento, comparados por mensaje (`documents.new_errors`: los que ya estaban
+    cambian de línea si el estudiante añade líneas, pero no de mensaje). «Comprobar» no cambia: la
+    evaluación sigue siendo local y determinista. Los mensajes de jdtls llegan en inglés.
 
 ### Seguridad sobre el repositorio
 
@@ -309,7 +318,7 @@ Estado: ✅ modo Encuentra el error (GCQ-16) · ✅ parser tree-sitter y errores
 
 ### v0.4 — “Un editor de verdad”
 
-Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23) · ✅ sugerencias en el editor (GCQ-24).
+Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23) · ✅ sugerencias en el editor (GCQ-24) · ✅ errores de compilación en «Probar» (GCQ-25). **v0.4 completo.**
 - Descarga y arranque de jdtls sobre una copia espejo del proyecto (GCQ-23).
 - Sugerencias al escribir `.` o pulsar Ctrl+Espacio en el editor de los ejercicios (GCQ-24).
 - «Probar» muestra los errores de compilación de jdtls (GCQ-25).

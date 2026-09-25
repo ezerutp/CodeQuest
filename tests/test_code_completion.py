@@ -127,7 +127,7 @@ def test_fix_code_view_sends_the_whole_file_in_memory(qapp: QApplication) -> Non
     view._complete = complete
     view.show()
     view.start(_session(), None)
-    view.set_completion_available(True)
+    view.set_language_server_ready(True)
     assert "Ctrl+Espacio" in view._hint.text()
     editor = view._editor
     editor.set_code(CODE.replace("return service.find(id);", "return HttpStatus"), first_line=2)
@@ -144,7 +144,7 @@ def test_fix_code_view_sends_the_whole_file_in_memory(qapp: QApplication) -> Non
     assert text.split("\n")[line] == "        return HttpStatus." and text.startswith("class UserController {\n")
     assert text.endswith("\n}\n") and FILE.count("\n") == text.count("\n")
     assert editor.completer.items() == ["NO_CONTENT", "NOT_FOUND", "OK"]
-    view.set_completion_available(False)
+    view.set_language_server_ready(False)
     assert "Ctrl+Espacio" not in view._hint.text() and editor.completer is None
     view.shutdown()
     view.hide()

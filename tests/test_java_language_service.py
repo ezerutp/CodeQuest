@@ -90,3 +90,17 @@ def test_start_can_be_cancelled(tmp_path: Path) -> None:
     with pytest.raises(LanguageServerCancelled):
         service.start(_project(tmp_path / "student"), "id", cancel=cancel)
     assert service.status.state is ServerState.STOPPED
+
+
+def test_diagnostics_wait_for_the_next_publication_or_keep_the_last_state(tmp_path: Path) -> None:
+    service, _, _ = _service(tmp_path)
+    assert service.diagnostics("src/main/java/C.java", CONTROLLER) is None  # sin arrancar
+    service.start(_project(tmp_path / "student"), "id")
+    path = "src/main/java/C.java"
+    assert service.diagnostics(path, CONTROLLER, wait=0.3) == ()  # limpio: jdtls no publica nada
+    broken = CONTROLLER.replace("HttpStatus.", "HttpStatus.FOO")
+    errors = service.diagnostics(path, broken, wait=5)
+    assert [(d.line, d.message) for d in errors] == [(2, "FOO cannot be resolved or is not a field")]
+    assert service.diagnostics(path, broken + "\n// unused\n", wait=5)[-1].is_error is False
+    assert service.diagnostics(path, CONTROLLER, wait=5) == ()  # al corregirlo publica la lista vacía
+    service.stop()
