@@ -14,3 +14,16 @@ QPlainTextEdit#CodeEditor:focus[readOnly="false"] { border-color: ${accent}; }
     color: ${text_muted};
     font-size: 12px;
 }
+
+/* Lista de sugerencias del editor (QCompleter): ventana emergente, estilo de menú del IDE */
+QListView#CompletionPopup {
+    background: ${surface_raised};
+    border: 1px solid ${border_strong};
+    border-radius: 6px;
+    color: ${text};
+    outline: none;
+    padding: 4px;
+}
+QListView#CompletionPopup::item { padding: 3px 6px; border-radius: 4px; }
+QListView#CompletionPopup::item:selected { background: ${accent_soft}; color: ${text}; }
+QListView#CompletionPopup::item:hover { background: ${surface_hover}; }

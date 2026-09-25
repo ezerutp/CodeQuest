@@ -11,6 +11,7 @@ from enum import StrEnum
 from codequest.core.analysis.java.syntax import syntax_error_lines, tokens, tokens_by_line
 from codequest.core.games.base import BaseGameMode, Evaluation, Outcome
 from codequest.core.games.catalog import FIX_CODE
+from codequest.core.lsp.documents import splice
 from codequest.core.questions.models import Question
 
 
@@ -71,10 +72,9 @@ def _syntax_error(fix: CodeFix) -> int | None | bool:
     cabecera sin su `}`) o un archivo que ya no compilaba no son culpa del estudiante."""
     context = fix.file_text if fix.file_text is not None else fix.original
     offset = fix.first_line - 1 if fix.file_text is not None else 0
-    lines = context.split("\n")
     original_count = fix.original.count("\n") + 1
     edited_count = fix.edited.count("\n") + 1
-    rebuilt = "\n".join([*lines[:offset], fix.edited, *lines[offset + original_count:]])
+    rebuilt = splice(context, offset + 1, fix.original, fix.edited)
 
     first, last_edited = offset + 1, offset + edited_count
     shift = edited_count - original_count

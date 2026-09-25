@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
 
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.project.models import ProjectInfo
@@ -215,3 +215,33 @@ class SignalRelay(QObject):
     `emitted.emit` se pasa como callback al servicio; Qt entrega la señal en el hilo del receptor."""
 
     emitted = Signal(object)
+
+
+class LatestOnlyTask(QObject):
+    """Como BackgroundTask, pero para peticiones que se quedan viejas (sugerencias al escribir): si
+    llega una nueva mientras otra corre, solo se guarda la última y se lanza al terminar la actual."""
+
+    finished = Signal(object)
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._task = BackgroundTask(self)
+        self._task.finished.connect(self._on_done)
+        self._task.failed.connect(lambda message: self._on_done(None))
+        self._pending: TaskFunction | None = None
+
+    def submit(self, function: TaskFunction) -> None:
+        if not self._task.start(function):
+            self._pending = function
+
+    def shutdown(self, timeout_ms: int = 3000) -> None:
+        self._pending = None
+        self._task.shutdown(timeout_ms)
+
+    def _on_done(self, result: object) -> None:
+        if result is not None:
+            self.finished.emit(result)
+        if self._pending is not None:
+            function, self._pending = self._pending, None
+            # El hilo anterior se libera tras esta señal: se lanza en la siguiente vuelta del bucle.
+            QTimer.singleShot(0, lambda: self.submit(function))
