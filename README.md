@@ -6,7 +6,7 @@ CodeQuest es una aplicación de escritorio que analiza el repositorio donde la e
 y convierte su código real en ejercicios interactivos. La primera versión soporta
 proyectos **Java · Spring Boot · Maven/Gradle**.
 
-Versión actual: **0.3.0**. Ver [docs/PLAN.md](docs/PLAN.md) para la arquitectura y el roadmap.
+Versión actual: **0.4.0**. Ver [docs/PLAN.md](docs/PLAN.md) para la arquitectura y el roadmap.
 
 ## Modos de juego
 
@@ -17,16 +17,29 @@ Todas las preguntas salen del código de tu proyecto:
 | Alternativas | Eliges qué hace una anotación o un supertipo en tu código | No |
 | Verdadero o falso | Decides si una afirmación sobre tu código es cierta | No |
 | Encuentra el error | Señalas la línea que se cambió en tu código | No |
-| Corrige el código | Editas el fragmento hasta dejarlo sin el error | No |
+| Corrige el código | Editas el fragmento hasta dejarlo sin el error; «Probar» revisa tu versión sin enviarla | No |
 | Comparaciones | Explicas la diferencia entre lo que usas y su alternativa (`@RestController` vs `@Controller`…) | No |
 | Explícame este código | Describes con tus palabras qué hace un método; Claude lo evalúa | Sí |
 
 Los errores de *Encuentra el error* y *Corrige el código* se aplican sobre una copia en memoria:
 tu proyecto nunca se modifica.
 
+## Autocompletado de Java (opcional)
+
+En *Corrige el código* el editor puede sugerir mientras escribes, como VS Code: al escribir `.` o
+pulsar Ctrl+Espacio (`HttpStatus.` → `NO_CONTENT`, `NOT_FOUND`…), y «Probar» muestra también los
+errores de compilación reales (`HttpStatus.FOO`, un método que no existe…). Usa
+[jdtls](https://github.com/eclipse-jdtls/eclipse.jdt.ls), el mismo servidor de Java que VS Code.
+
+Se activa desde *Configuración → Autocompletado de Java → Descargar* (unos 51 MB, desde
+download.eclipse.org) y necesita **Java 21 o superior**. Arranca solo al abrir un proyecto Java; la
+primera vez tarda más porque Maven o Gradle descargan las dependencias del proyecto. Sin jdtls
+todo funciona igual.
+
 ## Requisitos
 
 - Python 3.12+
+- (Opcional) Java 21+ para el autocompletado de Java
 - (Opcional) `ANTHROPIC_API_KEY` para las funciones con IA
 
 ## Instalación
@@ -90,7 +103,8 @@ La IA sirve para:
 
 ## Privacidad y seguridad
 
-- CodeQuest **solo lee** el proyecto analizado; nunca escribe en él.
+- CodeQuest **solo lee** el proyecto analizado; nunca escribe en él. jdtls trabaja sobre una copia
+  del código en la carpeta de datos de CodeQuest, porque escribe archivos propios en lo que abre.
 - El progreso (SQLite) y los logs se guardan en el directorio de datos del usuario, no en el repo.
   La base solo guarda qué preguntas respondiste y cómo, nunca tu código.
 - La API key solo se lee de la variable de entorno. Nunca se muestra, guarda ni registra.
