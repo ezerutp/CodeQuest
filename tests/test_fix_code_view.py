@@ -104,3 +104,46 @@ def test_ctrl_enter_checks_while_typing_in_the_editor(qapp: QApplication) -> Non
     QTest.keyClick(view._editor, Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)
     assert session.is_answered and "\n\n" not in view.edited_code()[:30]
     view.hide()
+
+
+def test_try_reports_without_answering(qapp: QApplication) -> None:
+    view = _view()
+    session = _session()
+    view.start(session, None)
+    evaluations = []
+    view.answered.connect(evaluations.append)
+    view.set_edited_code(CODE.replace("find(id);", "find(id)"))
+    view._try()
+    assert not session.is_answered and evaluations == []
+    assert view._trial.isVisibleTo(view) and "sintaxis" in view._trial_text.text()
+    assert view._trial_text.property("tone") == "danger"
+    view.set_edited_code(CODE)  # editar invalida la prueba anterior
+    assert not view._trial.isVisibleTo(view)
+    view._try()
+    assert view._trial_text.property("tone") == "success" and not session.is_answered
+    view._answer()
+    assert evaluations[0].outcome is Outcome.CORRECT
+    assert not view._trial.isVisibleTo(view) and not view._try_button.isVisibleTo(view)
+
+
+def test_try_does_not_reveal_the_error_line(qapp: QApplication) -> None:
+    view = _view()
+    view.start(_session(), None)
+    view.set_edited_code(CODE.replace("@GetMapping", "@DeleteMapping"))
+    view._try()
+    assert view._trial_text.text() == "La sintaxis es correcta, pero el error sigue ahí."
+
+
+def test_ctrl_shift_enter_tries_while_typing(qapp: QApplication) -> None:
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    view = _view()
+    session = _session()
+    view.show()
+    view.start(session, None)
+    view._editor.setFocus()
+    modifiers = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+    QTest.keyClick(view._editor, Qt.Key.Key_Return, modifiers)
+    assert not session.is_answered and view._trial_text.text() == "Todavía no has cambiado nada."
+    view.hide()

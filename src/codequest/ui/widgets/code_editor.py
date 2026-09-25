@@ -3,6 +3,7 @@
 import weakref
 from collections.abc import Iterable, Mapping
 
+import shiboken6
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
@@ -17,10 +18,13 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
+from codequest.core.lsp.models import CompletionList
 from codequest.ui.theme import current_palette
+from codequest.ui.widgets.code_completion import EditorCompleter
 from codequest.ui.widgets.java_highlighter import JavaHighlighter
 from codequest.ui.widgets.style_utils import repolish
 
+_COMPLETER_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Tab, Qt.Key.Key_Backtab, Qt.Key.Key_Escape)
 MONOSPACE_FAMILIES = ("JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "Noto Sans Mono",
                       "DejaVu Sans Mono", "Consolas", "Menlo")
 INDENT = "    "
@@ -35,7 +39,8 @@ def set_editor_font_size(point_size: int) -> None:
     global _font_size
     _font_size = point_size
     for editor in list(_editors):
-        editor.apply_font_size(point_size)
+        if shiboken6.isValid(editor):  # el objeto de Python puede sobrevivir al widget ya destruido
+            editor.apply_font_size(point_size)
 
 
 def monospace_font(point_size: int = 11) -> QFont:
@@ -68,6 +73,8 @@ class CodeEditor(QPlainTextEdit):
     """
 
     submit_requested = Signal()  # Ctrl+Enter: "Comprobar" sin soltar el teclado
+    try_requested = Signal()  # Ctrl+Shift+Enter: "Probar" sin enviar la respuesta
+    completion_requested = Signal(int)  # «.» o Ctrl+Espacio; responder con show_completions(número, …)
 
     def __init__(self, parent: QWidget | None = None, read_only: bool = True) -> None:
         super().__init__(parent)
@@ -75,6 +82,7 @@ class CodeEditor(QPlainTextEdit):
         self._palette = current_palette()
         self._first_line = 1
         self._highlighted: dict[int, str] = {}  # línea real -> color de fondo
+        self._completer: EditorCompleter | None = None  # solo si se activan las sugerencias
 
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self._highlighter = JavaHighlighter(self.document(), self._palette)
@@ -97,6 +105,8 @@ class CodeEditor(QPlainTextEdit):
     # --- API pública ------------------------------------------------------------
 
     def set_code(self, text: str, first_line: int = 1) -> None:
+        if self._completer is not None:
+            self._completer.hide()
         self._first_line = first_line
         self._highlighted.clear()
         self.setPlainText(text)
@@ -112,6 +122,8 @@ class CodeEditor(QPlainTextEdit):
         return self._first_line
 
     def set_read_only(self, read_only: bool) -> None:
+        if read_only and self._completer is not None:
+            self._completer.hide()
         self.setReadOnly(read_only)
         # El cursor sigue siendo útil en solo lectura: permite seleccionar y copiar.
         flags = Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
@@ -120,6 +132,32 @@ class CodeEditor(QPlainTextEdit):
         self.setTextInteractionFlags(flags)
         repolish(self)  # el QSS usa [readOnly=...]
         self._refresh_selections()
+
+    # --- sugerencias -----------------------------------------------------------------
+
+    def set_completion_enabled(self, enabled: bool) -> None:
+        """Activa la lista de sugerencias (al escribir «.» o con Ctrl+Espacio). Quien usa el editor
+        responde a `completion_requested` con `show_completions`."""
+        if enabled and self._completer is None:
+            self._completer = EditorCompleter(self)
+            self._completer.requested.connect(self.completion_requested)
+        elif not enabled and self._completer is not None:
+            self._completer.hide()
+            self._completer.deleteLater()
+            self._completer = None
+
+    @property
+    def completer(self) -> EditorCompleter | None:
+        return self._completer
+
+    def show_completions(self, token: int, result: CompletionList) -> None:
+        if self._completer is not None:
+            self._completer.show(token, result)
+
+    def cursor_position(self) -> tuple[int, int]:
+        """(línea, columna) del cursor, 0-based y relativas al texto del editor (no al archivo)."""
+        cursor = self.textCursor()
+        return cursor.blockNumber(), cursor.positionInBlock()
 
     def highlight_lines(self, lines: Iterable[int], scroll: bool = True) -> None:
         """Resalta líneas (numeración real del archivo) y opcionalmente las hace visibles."""
@@ -219,11 +257,30 @@ class CodeEditor(QPlainTextEdit):
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         if (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
                 and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-            self.submit_requested.emit()
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self.try_requested.emit()
+            else:
+                self.submit_requested.emit()
             return
         if self.isReadOnly():
             super().keyPressEvent(event)
             return
+        completer = self._completer
+        if completer is not None:
+            if completer.is_visible and event.key() in _COMPLETER_KEYS:
+                event.ignore()  # los gestiona la lista de sugerencias (elegir, cerrar)
+                return
+            if event.key() == Qt.Key.Key_Space and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                completer.request()
+                return
+        self._edit_key(event)
+        if completer is not None:
+            if event.text() == ".":
+                completer.request()
+            elif completer.is_active:
+                completer.after_key()
+
+    def _edit_key(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Tab and not event.modifiers():
             self.insertPlainText(INDENT)
             return
