@@ -81,7 +81,7 @@ class LearnPage(Page):
         self._show(self._select)
 
     def set_language_server_ready(self, ready: bool) -> None:
-        """jdtls en «Corrige el código» (el único editor editable): sugerencias y errores de compilación."""
+        """Servidor de lenguaje (jdtls o tsserver) en «Corrige el código»: sugerencias y errores de compilación."""
         self._fix_code.set_language_server_ready(ready)
 
     def shutdown(self) -> None:

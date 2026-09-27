@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 TSSERVER_VERSION = "4.3.0"
 TSSERVER_PACKAGE = "typescript-language-server"
+TYPESCRIPT_VERSION = "5"  # respaldo si el proyecto no tiene TypeScript instalado
 
 
 class TypeScriptServerInstallation:
@@ -23,7 +24,10 @@ class TypeScriptServerInstallation:
     @property
     def command(self) -> list[str]:
         """Comando para arrancar el servidor."""
-        return ["npx", "--yes", f"{TSSERVER_PACKAGE}@{TSSERVER_VERSION}", "--stdio"]
+        # typescript-language-server no trae TypeScript: usa el del proyecto (node_modules) y, si el
+        # estudiante no ha hecho `npm install`, el que npx instala junto a él.
+        return ["npx", "--yes", "-p", f"{TSSERVER_PACKAGE}@{TSSERVER_VERSION}",
+                "-p", f"typescript@{TYPESCRIPT_VERSION}", TSSERVER_PACKAGE, "--stdio"]
 
     @property
     def is_installed(self) -> bool:
