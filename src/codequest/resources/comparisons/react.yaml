@@ -1,0 +1,93 @@
+# Comparaciones entre hooks de React parecidos. Formato: docs/KNOWLEDGE.md (sección "Comparaciones")
+
+version: 1
+comparisons:
+- id: compare.use-state-vs-use-ref
+  concept: react.use-state
+  versus: useRef
+  summary: 'Cambiar un estado de useState vuelve a dibujar el componente; cambiar ref.current no.'
+  explanation: |
+    Los dos guardan un valor que sobrevive entre renderizados. La diferencia es qué pasa cuando cambia: al llamar al setter de useState, React vuelve a ejecutar el componente y actualiza la pantalla.
+
+    Con useRef cambias ref.current directamente y React no se entera. Usa useState para lo que se muestra en pantalla y useRef para lo que no: un elemento del DOM, el id de un temporizador, un valor anterior.
+  analogy: 'useState es la pizarra que toda la clase mira; useRef es la libreta que llevas en el bolsillo.'
+  distractors:
+  - 'useState guarda el valor solo durante el primer renderizado; useRef lo conserva siempre entre renderizados.'
+  - 'useState solo acepta números y textos; useRef es el único que puede guardar objetos, arrays o funciones.'
+  - 'useState comparte el valor con todos los componentes hijos; useRef lo mantiene privado dentro del componente.'
+  youtube_query: React useState vs useRef diferencia
+
+- id: compare.use-ref-vs-use-state
+  concept: react.use-ref
+  versus: useState
+  summary: 'Cambiar ref.current no vuelve a dibujar nada; el setter de useState sí provoca un renderizado.'
+  explanation: |
+    useRef devuelve una caja { current } que puedes modificar cuando quieras: React la conserva, pero no reacciona a sus cambios. Por eso es ideal para referencias al DOM o datos internos que no se muestran.
+
+    useState, en cambio, está pensado para lo que ves en pantalla: cada cambio con su setter vuelve a ejecutar el componente. Si guardas en una ref algo que se muestra, la pantalla no se actualizará.
+  analogy: 'La ref es un cajón que abres sin que nadie lo note; el estado es un marcador que todos miran.'
+  distractors:
+  - 'useRef guarda el valor en el almacenamiento del navegador; useState lo pierde en cuanto se recarga la página.'
+  - 'useRef solo sirve dentro de componentes de clase; useState es la única opción en componentes de función.'
+  - 'useRef actualiza la pantalla más rápido que useState porque evita la comparación del DOM virtual de React.'
+  youtube_query: React useRef vs useState
+
+- id: compare.use-memo-vs-use-callback
+  concept: react.use-memo
+  versus: useCallback
+  summary: 'useMemo guarda el resultado de ejecutar la función; useCallback guarda la función sin ejecutarla.'
+  explanation: |
+    Los dos recuerdan algo entre renderizados hasta que cambian sus dependencias. useMemo(() => filtrar(lista), [lista]) ejecuta la función y guarda lo que devuelve: un valor.
+
+    useCallback(fn, [deps]) guarda la propia función para pasarla a un hijo o a las dependencias de un efecto sin crear una nueva cada vez. De hecho, useCallback(fn, deps) equivale a useMemo(() => fn, deps).
+  analogy: 'useMemo guarda el pastel ya horneado; useCallback guarda la receta para hornearlo cuando quieras.'
+  distractors:
+  - 'useMemo se ejecuta antes de dibujar y useCallback después, como un efecto que sincroniza el componente.'
+  - 'useMemo solo funciona con números y useCallback con cualquier tipo de valor que devuelva la función dada.'
+  - 'useMemo guarda el valor para siempre; useCallback lo recalcula en cada renderizado aunque nada haya cambiado.'
+  youtube_query: React useMemo vs useCallback diferencia
+
+- id: compare.use-callback-vs-use-memo
+  concept: react.use-callback
+  versus: useMemo
+  summary: 'useCallback devuelve la misma función entre renderizados; useMemo devuelve el valor que esta calcula.'
+  explanation: |
+    useCallback sirve para que una función conserve su identidad: el hijo optimizado con memo o el useEffect que la tiene como dependencia no se repiten sin motivo.
+
+    useMemo ejecuta la función y guarda el resultado, útil para cálculos costosos. Si usas useMemo donde esperabas una función, obtendrás su valor de retorno en vez de la función.
+  analogy: 'useCallback guarda el número de teléfono; useMemo guarda lo que te dijeron en la última llamada.'
+  distractors:
+  - 'useCallback hace que la función sea asíncrona; useMemo obliga a que la función devuelva siempre el mismo valor.'
+  - 'useCallback ejecuta la función en cada clic del usuario; useMemo la ejecuta solo al montar el componente.'
+  - 'useCallback solo se usa con eventos del DOM; useMemo es para funciones que llaman a la API del servidor.'
+  youtube_query: React useCallback vs useMemo
+
+- id: compare.use-query-vs-use-mutation
+  concept: tanstack.use-query
+  versus: useMutation
+  summary: 'useQuery pide y guarda datos al dibujar; useMutation cambia datos solo cuando llamas a mutate.'
+  explanation: |
+    useQuery es para leer: se ejecuta sola al montar el componente, guarda el resultado en la caché bajo su queryKey y lo vuelve a pedir cuando se queda viejo.
+
+    useMutation es para escribir (crear, editar, borrar): no hace nada hasta que llamas a mutate, no se cachea y, al terminar, se suele invalidar la consulta relacionada para refrescar la pantalla.
+  analogy: 'useQuery es mirar el tablón de anuncios; useMutation es colgar un anuncio nuevo cuando tú decides.'
+  distractors:
+  - 'useQuery solo funciona con peticiones GET de axios; useMutation es la única forma de usar fetch en la app.'
+  - 'useQuery guarda los datos en el componente; useMutation los guarda en el almacenamiento local del navegador.'
+  - 'useQuery se ejecuta en el servidor antes de enviar la página; useMutation se ejecuta después en el navegador.'
+  youtube_query: TanStack Query useQuery vs useMutation
+
+- id: compare.use-params-vs-use-search-params
+  concept: router.use-params
+  versus: useSearchParams
+  summary: 'useParams lee el camino de la URL (/servicios/42); useSearchParams lee lo que va tras el ?.'
+  explanation: |
+    useParams devuelve los segmentos variables definidos en la ruta, como :id en /servicios/:id. Identifican qué recurso se está viendo y no se pueden cambiar con esta API.
+
+    useSearchParams lee y modifica los parámetros de consulta (?pagina=2&estado=activo): son opcionales y se usan para filtros, búsquedas o paginación.
+  analogy: 'useParams es el número de la casa; useSearchParams son las notas que añades al pedido.'
+  distractors:
+  - 'useParams lee las props del componente padre; useSearchParams lee los parámetros que llegan desde la URL.'
+  - 'useParams solo funciona con números enteros; useSearchParams acepta cualquier texto que venga en la dirección.'
+  - 'useParams devuelve los datos del formulario enviado; useSearchParams devuelve los resultados de un buscador.'
+  youtube_query: React Router useParams vs useSearchParams

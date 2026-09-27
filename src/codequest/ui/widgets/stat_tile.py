@@ -18,3 +18,6 @@ class StatTile(Card):
 
     def set_value(self, value: int | str) -> None:
         self._value.setText(str(value))
+
+    def set_label(self, label: str) -> None:
+        self._label.setText(label)

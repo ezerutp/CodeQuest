@@ -18,6 +18,7 @@ class KnowledgeBase:
         self._concepts: dict[str, Concept] = {}
         self._by_annotation: dict[str, Concept] = {}
         self._by_supertype: dict[str, Concept] = {}
+        self._by_call: dict[str, Concept] = {}
         self.issues: list[LoadIssue] = list(issues)
         for concept in concepts:
             self._add(concept)
@@ -50,6 +51,10 @@ class KnowledgeBase:
     def for_supertype(self, name: str) -> Concept | None:
         return self._by_supertype.get(name)
 
+    def for_call(self, name: str) -> Concept | None:
+        """Concepto de una función de TypeScript/React: "useState" -> react.use-state."""
+        return self._by_call.get(name)
+
     def source_counts(self) -> Counter[ConceptSource]:
         return Counter(c.source for c in self._concepts.values())
 
@@ -65,7 +70,7 @@ class KnowledgeBase:
         if concept is None or concept.source is ConceptSource.BUILTIN:
             return None
         del self._concepts[concept_id]
-        for index in (self._by_annotation, self._by_supertype):
+        for index in (self._by_annotation, self._by_supertype, self._by_call):
             for name in [n for n, c in index.items() if c.id == concept_id]:
                 del index[name]
         return concept
@@ -74,6 +79,7 @@ class KnowledgeBase:
         conflicts = [f"id '{concept.id}'"] if concept.id in self._concepts else []
         conflicts += [f"@{a}" for a in concept.matches.annotations if a in self._by_annotation]
         conflicts += [s for s in concept.matches.supertypes if s in self._by_supertype]
+        conflicts += [f"{c}()" for c in concept.matches.calls if c in self._by_call]
         if conflicts:
             if concept.source is ConceptSource.BUILTIN:
                 raise ValueError(f"Conocimiento integrado duplicado en {concept.id}: {', '.join(conflicts)}")
@@ -86,3 +92,5 @@ class KnowledgeBase:
             self._by_annotation[name] = concept
         for name in concept.matches.supertypes:
             self._by_supertype[name] = concept
+        for name in concept.matches.calls:
+            self._by_call[name] = concept

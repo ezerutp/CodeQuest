@@ -1,4 +1,4 @@
-"""Resaltado de sintaxis Java: traduce los tokens del lexer (core) a formatos de Qt."""
+"""Resaltado de sintaxis Java/TypeScript: traduce los tokens del lexer (core) a formatos de Qt."""
 
 from PySide6.QtGui import (
     QColor,
@@ -8,7 +8,7 @@ from PySide6.QtGui import (
     QTextDocument,
 )
 
-from codequest.core.analysis.java.lexer import LineState, TokenKind, tokenize_line
+from codequest.core.analysis.java.lexer import KEYWORDS, LineState, TokenKind, tokenize_line
 from codequest.ui.theme import Palette, current_palette
 
 
@@ -37,11 +37,17 @@ class JavaHighlighter(QSyntaxHighlighter):
     def __init__(self, document: QTextDocument, palette: Palette | None = None) -> None:
         super().__init__(document)
         self._formats = _formats(palette or current_palette())
+        self._keywords = KEYWORDS
+
+    def set_keywords(self, keywords: frozenset[str]) -> None:
+        if keywords is not self._keywords:
+            self._keywords = keywords
+            self.rehighlight()
 
     def highlightBlock(self, text: str) -> None:  # noqa: N802 (API de Qt)
         previous = self.previousBlockState()
         state = LineState(previous) if previous in (s.value for s in LineState) else LineState.NORMAL
-        tokens, new_state = tokenize_line(text, state)
+        tokens, new_state = tokenize_line(text, state, self._keywords)
         for token in tokens:
             self.setFormat(token.start, token.length, self._formats[token.kind])
         self.setCurrentBlockState(int(new_state))

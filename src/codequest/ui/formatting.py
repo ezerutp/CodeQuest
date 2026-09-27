@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timedelta
 
 from codequest.core.ai.availability import AIStatus
+from codequest.core.analysis.model import AnyRole
+from codequest.core.analysis.react.roles import ReactRole
 from codequest.core.analysis.roles import ComponentRole
 from codequest.core.lsp.jdtls import DOWNLOAD_SIZE_MB
 from codequest.core.lsp.models import ServerState, ServerStatus
@@ -60,9 +62,24 @@ ROLE_LABELS: dict[ComponentRole, tuple[str, str]] = {
 }
 
 
-def role_count(role: ComponentRole, count: int) -> str:
-    singular, plural = ROLE_LABELS[role]
-    return f"{count} {singular if count == 1 else plural}"
+# Diccionario aparte: ReactRole y ComponentRole son StrEnum y "service" == "service" colisionaría.
+REACT_ROLE_LABELS: dict[ReactRole, tuple[str, str]] = {
+    ReactRole.COMPONENT: ("Componente", "Componentes"),
+    ReactRole.HOOK: ("Hook", "Hooks"),
+    ReactRole.SERVICE: ("Servicio", "Servicios"),
+    ReactRole.TYPE: ("Tipo", "Tipos"),
+    ReactRole.ENUM: ("Enum", "Enums"),
+    ReactRole.UTILITY: ("Utilidad", "Utilidades"),
+}
+
+
+def role_label(role: AnyRole, plural: bool = False) -> str:
+    labels = REACT_ROLE_LABELS[role] if isinstance(role, ReactRole) else ROLE_LABELS[role]
+    return labels[1] if plural else labels[0]
+
+
+def role_count(role: AnyRole, count: int) -> str:
+    return f"{count} {role_label(role, plural=count != 1)}"
 
 
 def plural(count: int, singular: str, plural_form: str) -> str:
@@ -73,9 +90,17 @@ def duration(seconds: float) -> str:
     return f"{seconds * 1000:.0f} ms" if seconds < 1 else f"{seconds:.1f} s".replace(".", ",")
 
 
-def role_color(role: ComponentRole) -> str:
+def role_color(role: AnyRole) -> str:
     """Color del icono de un rol en el explorador (ayuda a escanear el árbol)."""
     p = current_palette()
+    if isinstance(role, ReactRole):
+        return {
+            ReactRole.COMPONENT: p.syntax_annotation,
+            ReactRole.HOOK: p.syntax_type,
+            ReactRole.SERVICE: p.success,
+            ReactRole.TYPE: p.syntax_string,
+            ReactRole.ENUM: p.warning,
+        }.get(role, p.text_muted)
     return {
         ComponentRole.ENTITY: p.syntax_number,
         ComponentRole.CONTROLLER: p.syntax_annotation,

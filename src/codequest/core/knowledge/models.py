@@ -15,6 +15,10 @@ class Topic(StrEnum):
     VALIDATION = "validation"
     ERRORS = "errors"
     CONFIG = "config"
+    REACT = "react"
+    SERVER_STATE = "server-state"
+    ROUTING = "routing"
+    FORMS = "forms"
     OTHER = "other"
 
     @property
@@ -31,6 +35,10 @@ _TOPIC_LABELS = {
     Topic.VALIDATION: "Validación",
     Topic.ERRORS: "Manejo de errores",
     Topic.CONFIG: "Configuración",
+    Topic.REACT: "React",
+    Topic.SERVER_STATE: "Datos del servidor",
+    Topic.ROUTING: "Rutas",
+    Topic.FORMS: "Formularios",
     Topic.OTHER: "Otros",
 }
 
@@ -49,6 +57,7 @@ class ConceptMatch:
 
     annotations: tuple[str, ...] = ()  # "Transactional"
     supertypes: tuple[str, ...] = ()  # "JpaRepository"
+    calls: tuple[str, ...] = ()  # funciones de TypeScript/React: "useState"
 
 
 @dataclass(frozen=True, slots=True)

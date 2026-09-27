@@ -18,6 +18,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
+from codequest.core.analysis.java.lexer import keywords_for
 from codequest.core.lsp.models import CompletionList
 from codequest.ui.theme import current_palette
 from codequest.ui.widgets.code_completion import EditorCompleter
@@ -104,7 +105,9 @@ class CodeEditor(QPlainTextEdit):
 
     # --- API pública ------------------------------------------------------------
 
-    def set_code(self, text: str, first_line: int = 1) -> None:
+    def set_code(self, text: str, first_line: int = 1, file: str | None = None) -> None:
+        """`file` (ruta del fragmento) elige el resaltado: TypeScript para .ts/.tsx, Java si no."""
+        self._highlighter.set_keywords(keywords_for(file))
         if self._completer is not None:
             self._completer.hide()
         self._first_line = first_line

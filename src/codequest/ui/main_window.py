@@ -25,12 +25,12 @@ from codequest.core.games.base import Evaluation
 from codequest.core.games.catalog import MULTIPLE_CHOICE, mode_info
 from codequest.core.knowledge.models import ConceptSource
 from codequest.core.lsp.jdtls import DOWNLOAD_SIZE_MB, JDTLS_VERSION, MIN_JAVA_VERSION
-from codequest.core.lsp.models import ServerState, ServerStatus
+from codequest.core.lsp.models import LanguageServerCancelled, ServerState, ServerStatus
 from codequest.core.persistence.progress import project_id_for
-from codequest.core.project.models import Language, ProjectInfo
+from codequest.core.project.models import Framework, Language, ProjectInfo
 from codequest.core.settings import Settings, SettingsStore
 from codequest.services.explain_service import ExplainService
-from codequest.services.java_language_service import JavaLanguageService, LanguageServerCancelled
+from codequest.services.java_language_service import JavaLanguageService
 from codequest.services.knowledge_service import GenerationResult, KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.progress_service import ProgressService
@@ -518,8 +518,9 @@ class MainWindow(QMainWindow):
         label = display_name(cls) if cls else ("Repaso" if concept_ids is not None else None)
         if not session.questions:
             target = f"la clase {label}" if label else "este proyecto"
+            used = "sus hooks" if self._model.info.framework is Framework.REACT else "sus anotaciones"
             self._learn.show_mode_select(
-                f"Todavía no tengo preguntas sobre {target}: sus anotaciones no están en mi base de "
+                f"Todavía no tengo preguntas sobre {target}: {used} no están en mi base de "
                 "conocimiento. Prueba con otra clase o con todo el proyecto."
             )
             return

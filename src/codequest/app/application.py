@@ -69,6 +69,11 @@ def main(argv: list[str] | None = None) -> int:
     log_file = setup_logging(debug=args.debug)
     log.info("%s %s iniciando (log: %s)", APP_NAME, __version__, log_file)
 
+    # Qt se importa aquí para que --help/--version no necesiten cargarlo.
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication(sys.argv[:1])
+
     root = args.path if args.path else Path.cwd()
     service = ProjectService()
     try:
@@ -92,13 +97,9 @@ def main(argv: list[str] | None = None) -> int:
     explain = ExplainService(provider)
     progress = _open_progress()
 
-    # Qt se importa aquí para que --help/--version no necesiten cargarlo.
-    from PySide6.QtWidgets import QApplication
-
     from codequest.ui.main_window import MainWindow
     from codequest.ui.theme import DARK, apply_palette, load_stylesheet
 
-    app = QApplication(sys.argv[:1])
     _install_qt_translations(app)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)

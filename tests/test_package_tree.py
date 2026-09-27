@@ -1,5 +1,6 @@
 from codequest.core.analysis.java.models import JavaClass, TypeKind
-from codequest.core.analysis.package_tree import build_package_tree, display_name
+from codequest.core.analysis.package_tree import build_package_tree, display_name, package_of
+from codequest.core.analysis.typescript.models import TSClass, TSTypeKind
 
 
 def cls(package: str, name: str, enclosing: str | None = None) -> JavaClass:
@@ -36,3 +37,16 @@ def test_default_package_and_nested_class_names() -> None:
 
     assert [c.name for c in root.classes] == ["Main"]
     assert display_name(inner) == "Outer.Inner"
+
+
+def test_typescript_files_are_grouped_by_folder() -> None:
+    def ts(file: str, name: str) -> TSClass:
+        return TSClass(name=name, kind=TSTypeKind.FUNCTION, file=file, is_test=False, start_line=1, end_line=2)
+
+    button, app = ts("src/components/Button.tsx", "Button"), ts("App.tsx", "App")
+    root = build_package_tree([button, app])
+
+    assert package_of(button) == "src.components"
+    assert package_of(app) == ""
+    assert [c.name for c in root.classes] == ["App"]
+    assert [(p.name, [c.name for c in p.classes]) for p in root.packages] == [("src.components", ["Button"])]

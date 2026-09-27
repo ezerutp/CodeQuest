@@ -125,7 +125,7 @@ class FindErrorRule(QuestionRule):
 
     def drafts(self, model: ProjectModel, kb: KnowledgeBase) -> Iterator[QuestionDraft]:
         repositories = _repository_concepts(model, kb)
-        for cls in model.main_classes:
+        for cls in model.main_java_classes:
             name = display_name(cls)
             yield from _annotation_drafts(cls, cls.annotations, _header(cls), kb, "", {"cls": name})
             for field in cls.fields:
@@ -211,7 +211,7 @@ def _receiver(call: MethodCall) -> str | None:
 def _repository_concepts(model: ProjectModel, kb: KnowledgeBase) -> dict[str, Concept]:
     """Repositorios del proyecto (nombre simple) -> concepto de Spring Data que heredan."""
     found: dict[str, Concept] = {}
-    for cls in model.classes:
+    for cls in model.java_classes:
         if model.role_of(cls) is ComponentRole.REPOSITORY:
             concept = next((c for t in cls.interfaces if (c := kb.for_supertype(simple_type_name(t)))), None)
             if concept is not None:

@@ -24,10 +24,10 @@ class ReactAnalyzer(FrameworkAnalyzer):
         return roles
 
     def _classify(self, cls: TSClass) -> ReactRole:
+        if cls.is_component:  # antes que hook: un componente puede usar hooks
+            return ReactRole.COMPONENT
         if cls.is_hook:
             return ReactRole.HOOK
-        if cls.is_component:
-            return ReactRole.COMPONENT
         if cls.kind.value == "interface":
             return ReactRole.TYPE
         if cls.kind.value == "type":

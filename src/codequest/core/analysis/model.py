@@ -34,6 +34,15 @@ class ProjectModel:
         """Clases de producción: excluye src/test/."""
         return tuple(c for c in self.classes if not c.is_test)
 
+    @property
+    def java_classes(self) -> tuple[JavaClass, ...]:
+        """Solo las clases Java (con tests): las reglas de preguntas y la cobertura son de Java/Spring."""
+        return tuple(c for c in self.classes if isinstance(c, JavaClass))
+
+    @property
+    def main_java_classes(self) -> tuple[JavaClass, ...]:
+        return tuple(c for c in self.java_classes if not c.is_test)
+
     def classes_with_role(self, role: AnyRole) -> tuple[AnyClass, ...]:
         return tuple(c for c in self.main_classes if self.role_of(c) is role)
 
@@ -43,13 +52,12 @@ class ProjectModel:
     def annotation_usage(self) -> Counter[str]:
         """Cuántas veces aparece cada anotación (clases, campos, métodos y parámetros)."""
         usage: Counter[str] = Counter()
-        for cls in self.main_classes:
-            if isinstance(cls, JavaClass):
-                usage.update(a.name for a in cls.annotations)
-                for f in cls.fields:
-                    usage.update(a.name for a in f.annotations)
-                for m in cls.methods:
-                    usage.update(a.name for a in m.annotations)
-                    for p in m.parameters:
-                        usage.update(a.name for a in p.annotations)
+        for cls in self.main_java_classes:
+            usage.update(a.name for a in cls.annotations)
+            for f in cls.fields:
+                usage.update(a.name for a in f.annotations)
+            for m in cls.methods:
+                usage.update(a.name for a in m.annotations)
+                for p in m.parameters:
+                    usage.update(a.name for a in p.annotations)
         return usage

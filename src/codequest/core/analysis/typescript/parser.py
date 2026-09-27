@@ -14,9 +14,11 @@ from tree_sitter import Language, Node, Parser
 
 from codequest.core.analysis.base import SourceParser
 from codequest.core.analysis.typescript.models import (
+    TSCall,
     TSClass,
     TSField,
     TSMethod,
+    TSSourceSpan,
     TSTypeKind,
 )
 from codequest.core.project.models import SourceFile
@@ -35,6 +37,10 @@ _TYPE_KINDS = {
 _SPACES = re.compile(r"\s+")
 _HOOK_NAMES = frozenset({"useState", "useEffect", "useContext", "useReducer", "useMemo", "useCallback",
                          "useRef", "useLayoutEffect", "useImperativeHandle", "useTransition"})
+_CUSTOM_HOOK = re.compile(r"use[A-Z]\w*")  # convención de React: los hooks empiezan por "use"
+_JSX = frozenset({"jsx_element", "jsx_self_closing_element", "jsx_fragment"})
+_FUNCTION_VALUES = frozenset({"arrow_function", "function_expression", "function"})
+_WRAPPERS = frozenset({b"memo", b"forwardRef"})  # memo(() => …), React.forwardRef(function …)
 
 
 def normalize_ts_type(text: str) -> str:
@@ -98,6 +104,8 @@ class _FileReader:
                 self._read_type(node, enclosing=None)
             elif node.type == "function_declaration":
                 self._read_function(node)
+            elif node.type in ("lexical_declaration", "variable_declaration"):
+                self._read_variables(node)
             elif node.type == "export_statement":
                 self._read_export(node)
         return self._classes
@@ -112,9 +120,9 @@ class _FileReader:
             if declaration.type in _TYPE_KINDS:
                 self._read_type(declaration, enclosing=None)
             elif declaration.type == "function_declaration":
-                self._read_function(declaration)
-            elif declaration.type == "class_declaration":
-                self._read_type(declaration, enclosing=None)
+                self._read_function(declaration, extra_modifiers=("export",))
+            elif declaration.type in ("lexical_declaration", "variable_declaration"):
+                self._read_variables(declaration, exported=True)
         # export { A, B } no declara nada nuevo
 
     def _read_type(self, node: Node, enclosing: str | None) -> None:
@@ -126,12 +134,30 @@ class _FileReader:
             self._read_body(body, builder)
         self._classes.append(self._build(builder))
 
-    def _read_function(self, node: Node) -> None:
-        """Función declarada (posiblemente componente React o hook)."""
-        name = node.child_by_field_name("name")
+    def _read_variables(self, node: Node, exported: bool = False) -> None:
+        """const Header = () => <h1/>; también envuelto: memo(() => …), forwardRef(function …)."""
+        for declarator in node.named_children:
+            if declarator.type != "variable_declarator":
+                continue
+            name = declarator.child_by_field_name("name")
+            value = _unwrap_function(declarator.child_by_field_name("value"))
+            if name is not None and name.type == "identifier" and value is not None:
+                self._read_function(value, name=self._text(name), span=node,
+                                    extra_modifiers=("export",) if exported else ())
+
+    def _read_function(self, node: Node, name: str | None = None, span: Node | None = None,
+                       extra_modifiers: tuple[str, ...] = ()) -> None:
+        """Función declarada o asignada a una constante (posiblemente componente React o hook).
+
+        `span` es el nodo cuyas líneas se muestran (la declaración `const …` completa).
+        """
         if name is None:
-            return
-        modifiers = self._modifiers(node)
+            name_node = node.child_by_field_name("name")
+            if name_node is None:
+                return
+            name = self._text(name_node)
+        span = span or node
+        modifiers = (*extra_modifiers, *self._modifiers(node))
         params = node.child_by_field_name("parameters")
         parameters = tuple(self._parameter(p) for p in params.named_children
                            if p.type in ("required_parameter", "optional_parameter")) if params else ()
@@ -139,26 +165,30 @@ class _FileReader:
         if type_node := node.child_by_field_name("return_type"):
             return_type = self._type_from_annotation(type_node)
         body = node.child_by_field_name("body")
-        is_component = self._returns_jsx(body)
-        is_hook = self._uses_hooks(body)
+        # Reglas de React: los hooks se llaman useX; un componente puede usar hooks y devolver null
+        # (p. ej. los de react-leaflet), así que PascalCase + hooks también es un componente.
+        uses_hooks = self._uses_hooks(body)
+        is_component = self._returns_jsx(body) or (name[:1].isupper() and uses_hooks)
+        is_hook = not is_component and _CUSTOM_HOOK.fullmatch(name) is not None
         self._classes.append(TSClass(
-            name=self._text(name),
+            name=name,
             kind=TSTypeKind.FUNCTION,
             file=self._file.relative_path,
             is_test=self._file.is_test,
-            start_line=self._line(node),
-            end_line=self._end_line(node),
+            start_line=self._line(span),
+            end_line=self._end_line(span),
             modifiers=modifiers,
             imports=tuple(self._imports),
             fields=(),
             methods=(TSMethod(
-                name=self._text(name),
+                name=name,
                 return_type=return_type,
                 parameters=parameters,
                 modifiers=modifiers,
-                start_line=self._line(node),
-                end_line=self._end_line(node),
+                start_line=self._line(span),
+                end_line=self._end_line(span),
                 has_body=body is not None,
+                calls=self._calls(body),
             ),),
             is_component=is_component,
             is_hook=is_hook,
@@ -230,13 +260,51 @@ class _FileReader:
             start_line=self._line(node),
             end_line=self._end_line(node),
             has_body=body is not None,
+            calls=self._calls(body),
         )
 
+    def _calls(self, body: Node | None) -> tuple[TSCall, ...]:
+        """Llamadas con nombre (`f()` o `obj.f()`), en orden de aparición."""
+        if body is None:
+            return ()
+        calls: list[TSCall] = []
+        for node in _walk(body):
+            if node.type != "call_expression":
+                continue
+            func = node.child_by_field_name("function")
+            receiver = None
+            if func is not None and func.type == "member_expression":
+                obj = func.child_by_field_name("object")
+                receiver = self._text(obj) if obj is not None else None
+                func = func.child_by_field_name("property")
+            if func is not None and func.type in ("identifier", "property_identifier"):
+                calls.append(TSCall(self._text(func), receiver, self._span(func)))
+        return tuple(calls)
+
     def _parameter(self, node: Node) -> str:
-        name = node.child_by_field_name("name")
+        pattern = node.child_by_field_name("pattern")
         type_node = node.child_by_field_name("type")
         param_type = self._type_from_annotation(type_node) if type_node else "any"
-        return f"{self._text(name) if name else '?'}: {param_type}"
+        optional = "?" if node.type == "optional_parameter" else ""
+        return f"{self._pattern(pattern) if pattern else '?'}{optional}: {param_type}"
+
+    def _pattern(self, node: Node) -> str:
+        """Nombre de un parámetro; los desestructurados se resumen a sus nombres: "{ label, size }"."""
+        match node.type:
+            case "object_pattern":
+                return "{ " + ", ".join(self._pattern(c) for c in node.named_children) + " }"
+            case "array_pattern":
+                return "[" + ", ".join(self._pattern(c) for c in node.named_children) + "]"
+            case "rest_pattern":
+                return "..." + "".join(self._pattern(c) for c in node.named_children)
+            case "object_assignment_pattern" | "assignment_pattern":  # con valor por defecto
+                left = node.child_by_field_name("left")
+                return self._pattern(left) if left else self._text(node)
+            case "pair_pattern":  # { a: { deep } } → se muestra la clave
+                key = node.child_by_field_name("key")
+                return self._text(key) if key else self._text(node)
+            case _:
+                return self._text(node)
 
     def _type_from_annotation(self, node: Node) -> str:
         """Extrae el tipo de un type_annotation (sin los ':')."""
@@ -247,15 +315,13 @@ class _FileReader:
         return "any"
 
     def _returns_jsx(self, body: Node | None) -> bool:
-        """True si el cuerpo de la función contiene un return con JSX."""
+        """True si la función devuelve JSX: `return (<div/>)`, `cond ? <a/> : null` o `() => <b/>`."""
         if body is None:
             return False
-        for node in _walk(body):
-            if node.type == "return_statement":
-                for child in node.named_children:
-                    if child.type in ("jsx_element", "jsx_self_closing_element", "jsx_fragment"):
-                        return True
-        return False
+        if body.type != "statement_block":  # arrow function con expresión: () => <h1/>
+            return _is_jsx(body)
+        return any(node.type == "return_statement" and any(_is_jsx(c) for c in node.named_children)
+                   for node in _walk(body))
 
     def _uses_hooks(self, body: Node | None) -> bool:
         """True si el cuerpo llama a useState/useEffect/etc."""
@@ -264,8 +330,11 @@ class _FileReader:
         for node in _walk(body):
             if node.type == "call_expression":
                 func = node.child_by_field_name("function")
-                if func and func.type == "identifier":
-                    if self._text(func) in _HOOK_NAMES:
+                if func and func.type == "member_expression":  # React.useState(…)
+                    func = func.child_by_field_name("property")
+                if func and func.type in ("identifier", "property_identifier"):
+                    text = self._text(func)
+                    if text in _HOOK_NAMES or _CUSTOM_HOOK.fullmatch(text):
                         return True
         return False
 
@@ -299,9 +368,49 @@ class _FileReader:
     def _end_line(self, node: Node) -> int:
         return node.end_point.row + 1
 
+    def _span(self, node: Node) -> TSSourceSpan:
+        start, end = node.start_point, node.end_point
+        return TSSourceSpan(start.row + 1, self._column(start.row, start.column),
+                            end.row + 1, self._column(end.row, end.column))
+
     def _column(self, row: int, byte_column: int) -> int:
+        """tree-sitter cuenta bytes UTF-8; el resto de CodeQuest, caracteres ("año" mide 3, no 4)."""
         start = self._line_starts[row]
         return len(self._source[start:start + byte_column].decode("utf-8", errors="replace"))
+
+
+def _is_jsx(node: Node | None) -> bool:
+    """JSX, aunque vaya entre paréntesis o dentro de un ternario / `&&`."""
+    if node is None:
+        return False
+    match node.type:
+        case t if t in _JSX:
+            return True
+        case "parenthesized_expression":
+            return any(_is_jsx(c) for c in node.named_children)
+        case "ternary_expression":
+            return _is_jsx(node.child_by_field_name("consequence")) or _is_jsx(node.child_by_field_name("alternative"))
+        case "binary_expression":
+            return _is_jsx(node.child_by_field_name("right"))
+        case _:
+            return False
+
+
+def _unwrap_function(node: Node | None) -> Node | None:
+    """La función de `() => …`, `function () {…}` o de un envoltorio como memo(…)/forwardRef(…)."""
+    while node is not None:
+        if node.type in _FUNCTION_VALUES:
+            return node
+        if node.type == "call_expression":
+            func = node.child_by_field_name("function")
+            callee = func.child_by_field_name("property") if func and func.type == "member_expression" else func
+            if callee is None or callee.text not in _WRAPPERS:
+                return None
+            node = node.child_by_field_name("arguments")
+        elif node.type not in ("parenthesized_expression", "as_expression", "arguments"):
+            return None
+        node = node.named_children[0] if node is not None and node.named_children else None
+    return None
 
 
 def _walk(node: Node) -> Iterator[Node]:

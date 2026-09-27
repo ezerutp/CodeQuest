@@ -338,6 +338,7 @@ Estado: ✅ discovery multi-proyecto y detección de React (GCQ-26) · ✅ diál
 - Diálogo de selección cuando hay múltiples proyectos (GCQ-27).
 - Análisis TypeScript/React: `TreeSitterTypeScriptParser` (tree-sitter-typescript), `ReactAnalyzer` con roles (Component, Hook, Service, Type, Enum, Utility), detección de componentes por retorno de JSX y hooks por llamadas a useState/useEffect/etc.
 - LSP de TypeScript: `typescript-language-server` (mismo patrón que jdtls, sin copia espejo porque no escribe archivos). Integrado en `MainWindow._sync_language_server()` y `LearnPage`.
+- Con React funcionan Inicio (tarjetas Componentes/Hooks/Servicios/Tipos), el explorador «Mi proyecto» (carpetas en vez de paquetes) y los juegos: los conceptos de React se asocian a llamadas (`matches.calls`: `useState`, `useQuery`…) en `resources/knowledge/react.yaml`, y `core/questions/react.py` genera Alternativas, Verdadero o falso, Explícame, Comparaciones y Encuentra/Corrige el error (cambiando un hook por otro que rompe ese código). Las reglas de Java recorren `ProjectModel.java_classes` / `main_java_classes`.
 
 ---
 

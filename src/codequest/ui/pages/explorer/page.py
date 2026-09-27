@@ -6,9 +6,10 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QSplitter, QStackedWidget, QWidget
 
 from codequest.app.context import AppContext
-from codequest.core.analysis.java.models import JavaClass
-from codequest.core.analysis.model import ProjectModel
+from codequest.core.analysis.model import AnyClass, ProjectModel
+from codequest.core.analysis.package_tree import package_of
 from codequest.core.analysis.snippets import CodeSnippet
+from codequest.core.project.models import Language
 from codequest.ui.formatting import plural
 from codequest.ui.icons import icon_label
 from codequest.ui.pages.base import Page
@@ -17,14 +18,14 @@ from codequest.ui.pages.explorer.class_tree import ClassTree
 from codequest.ui.theme import current_palette
 from codequest.ui.widgets import Card, heading, muted
 
-SourceLoader = Callable[[ProjectModel, JavaClass], CodeSnippet]
+SourceLoader = Callable[[ProjectModel, AnyClass], CodeSnippet]
 
 
 class ProjectExplorerPage(Page):
     MAX_CONTENT_WIDTH = 1800
     FILL_HEIGHT = True
 
-    practice_requested = Signal(object)  # JavaClass
+    practice_requested = Signal(object)  # JavaClass | TSClass
 
     def __init__(self, load_source: SourceLoader, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -81,10 +82,11 @@ class ProjectExplorerPage(Page):
         if model is None or not model.main_classes:
             self._show_empty()
             return
-        packages = {c.package for c in model.main_classes}
+        packages = {package_of(c) for c in model.main_classes}
+        groups = ("carpeta", "carpetas") if model.info.language is Language.TYPESCRIPT else ("paquete", "paquetes")
         self._subtitle.setText(
             f"{model.info.name} · {plural(len(model.main_classes), 'clase', 'clases')} en "
-            f"{plural(len(packages), 'paquete', 'paquetes')}"
+            f"{plural(len(packages), *groups)}"
         )
         self._stack.setCurrentIndex(1)
 
@@ -100,8 +102,8 @@ class ProjectExplorerPage(Page):
             self._subtitle.setText("")
             self._empty_text.setText("Analizando tu proyecto…")
         else:
-            self._empty_text.setText("No se encontraron clases Java en este proyecto.")
+            self._empty_text.setText("No se encontraron clases en este proyecto.")
 
-    def _on_class_selected(self, cls: JavaClass) -> None:
+    def _on_class_selected(self, cls: AnyClass) -> None:
         if self._model is not None:
             self._detail.show_class(cls, self._model.role_of(cls))

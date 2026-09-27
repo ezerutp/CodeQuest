@@ -3,11 +3,9 @@
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QComboBox, QLineEdit, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
-from codequest.core.analysis.java.models import JavaClass
-from codequest.core.analysis.model import ProjectModel
+from codequest.core.analysis.model import AnyClass, ProjectModel
 from codequest.core.analysis.package_tree import PackageNode, build_package_tree, display_name
-from codequest.core.analysis.roles import ComponentRole
-from codequest.ui.formatting import ROLE_LABELS, role_color
+from codequest.ui.formatting import role_color, role_label
 from codequest.ui.icons import icon
 
 _CLASS_ROLE = Qt.ItemDataRole.UserRole
@@ -15,7 +13,7 @@ _EXPAND_ALL_LIMIT = 150  # con más clases solo se expande el primer nivel
 
 
 class ClassTree(QWidget):
-    class_selected = Signal(object)  # JavaClass
+    class_selected = Signal(object)  # JavaClass | TSClass
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -51,10 +49,10 @@ class ClassTree(QWidget):
         self._role_filter.addItem("Todos los tipos", None)
         if model is not None:
             counts = model.role_counts()
-            for role in ComponentRole:
-                if counts[role]:
-                    self._role_filter.addItem(icon(f"role.{role.value}", role_color(role)),
-                                              f"{ROLE_LABELS[role][1]} ({counts[role]})", role)
+            # Orden de declaración del enum (Java o React, según el proyecto).
+            for role in sorted(counts, key=lambda r: list(type(r)).index(r)):
+                self._role_filter.addItem(icon(f"role.{role.value}", role_color(role)),
+                                          f"{role_label(role, plural=True)} ({counts[role]})", role)
         self._role_filter.blockSignals(False)
         self._search.clear()
         self._rebuild()
@@ -102,12 +100,12 @@ class ClassTree(QWidget):
             item.addChild(self._class_item(cls))
         return item
 
-    def _class_item(self, cls: JavaClass) -> QTreeWidgetItem:
+    def _class_item(self, cls: AnyClass) -> QTreeWidgetItem:
         assert self._model is not None
         role = self._model.role_of(cls)
         item = QTreeWidgetItem([display_name(cls)])
         item.setIcon(0, icon(f"role.{role.value}", role_color(role)))
-        item.setToolTip(0, f"{ROLE_LABELS[role][0]} · {cls.file}")
+        item.setToolTip(0, f"{role_label(role)} · {cls.file}")
         item.setData(0, _CLASS_ROLE, cls)
         return item
 

@@ -11,7 +11,7 @@ from codequest.core.analysis.base import FrameworkAnalyzer, SourceParser
 from codequest.core.analysis.java.conventions import JavaConventionsAnalyzer
 from codequest.core.analysis.java.models import JavaClass
 from codequest.core.analysis.java.parser import TreeSitterJavaParser
-from codequest.core.analysis.model import ProjectModel
+from codequest.core.analysis.model import AnyClass, ProjectModel
 from codequest.core.analysis.react.analyzer import ReactAnalyzer
 from codequest.core.analysis.snippets import CodeSnippet, SnippetRef, read_snippet
 from codequest.core.analysis.spring.analyzer import SpringBootAnalyzer
@@ -96,7 +96,7 @@ class ProjectService:
         return model
 
     @staticmethod
-    def read_source(model: ProjectModel, cls: JavaClass, whole_file: bool = False) -> CodeSnippet:
+    def read_source(model: ProjectModel, cls: AnyClass, whole_file: bool = False) -> CodeSnippet:
         """Código de una clase (o su archivo completo) para mostrarlo. Solo lectura."""
         if whole_file:
             return read_snippet(model.info.root, cls.file)

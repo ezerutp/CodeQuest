@@ -15,7 +15,13 @@ from codequest.core.knowledge.coverage import KnowledgeReport, build_report
 from codequest.core.questions.comparisons import COMPARISON_RULES
 from codequest.core.questions.generator import ChoiceStyle, QuestionGenerator
 from codequest.core.questions.mutations import FIND_ERROR_RULES, FIX_CODE_RULES
-from codequest.core.questions.rules import EXPLAIN_RULES
+from codequest.core.questions.react import (
+    REACT_EXPLAIN_RULES,
+    REACT_FIND_ERROR_RULES,
+    REACT_FIX_CODE_RULES,
+    REACT_RULES,
+)
+from codequest.core.questions.rules import DEFAULT_RULES, EXPLAIN_RULES
 
 ROUND_SIZE = 10
 # Escribir o leer un fragmento entero cuesta más que elegir: rondas más cortas.
@@ -25,13 +31,16 @@ ROUND_SIZES = {EXPLAIN_CODE: 5, FIND_ERROR: 6, FIX_CODE: 5, COMPARISON: 8}
 class LearningService:
     def __init__(self, kb: KnowledgeBase | None = None, rng: random.Random | None = None) -> None:
         self.kb = kb or KnowledgeBase.default()
-        self._generator = QuestionGenerator(self.kb)
+        # Cada modo combina las reglas de Java/Spring y las de React: cada una ignora el otro lenguaje.
+        purpose_rules = (*DEFAULT_RULES, *REACT_RULES)
+        self._generator = QuestionGenerator(self.kb, purpose_rules)
         self._generators = {
             MULTIPLE_CHOICE: self._generator,
-            EXPLAIN_CODE: QuestionGenerator(self.kb, EXPLAIN_RULES, style=ChoiceStyle.NONE),
-            TRUE_FALSE: QuestionGenerator(self.kb, style=ChoiceStyle.TRUE_FALSE),
-            FIND_ERROR: QuestionGenerator(self.kb, FIND_ERROR_RULES, style=ChoiceStyle.NONE),
-            FIX_CODE: QuestionGenerator(self.kb, FIX_CODE_RULES, style=ChoiceStyle.NONE),
+            EXPLAIN_CODE: QuestionGenerator(self.kb, (*EXPLAIN_RULES, *REACT_EXPLAIN_RULES), style=ChoiceStyle.NONE),
+            TRUE_FALSE: QuestionGenerator(self.kb, purpose_rules, style=ChoiceStyle.TRUE_FALSE),
+            FIND_ERROR: QuestionGenerator(self.kb, (*FIND_ERROR_RULES, *REACT_FIND_ERROR_RULES),
+                                          style=ChoiceStyle.NONE),
+            FIX_CODE: QuestionGenerator(self.kb, (*FIX_CODE_RULES, *REACT_FIX_CODE_RULES), style=ChoiceStyle.NONE),
             COMPARISON: QuestionGenerator(self.kb, COMPARISON_RULES),
         }
         self._rng = rng or random.Random()

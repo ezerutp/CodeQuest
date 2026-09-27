@@ -24,17 +24,18 @@ from codequest.core.analysis.java.models import (
     JavaMethod,
     TypeKind,
 )
+from codequest.core.analysis.model import AnyClass, AnyRole
 from codequest.core.analysis.package_tree import display_name
-from codequest.core.analysis.roles import ComponentRole
 from codequest.core.analysis.snippets import CodeSnippet
-from codequest.ui.formatting import ROLE_LABELS
+from codequest.core.analysis.typescript.models import TSClass, TSField, TSMethod, TSTypeKind
+from codequest.ui.formatting import role_label
 from codequest.ui.icons import icon, icon_label
 from codequest.ui.theme import current_palette
 from codequest.ui.widgets import Card, Chip, CodeEditor, heading, mono, muted
 
 log = logging.getLogger(__name__)
 
-SourceLoader = Callable[[JavaClass], CodeSnippet]
+SourceLoader = Callable[[AnyClass], CodeSnippet]
 _LINES_ROLE = Qt.ItemDataRole.UserRole
 _MAX_ANNOTATION_CHIPS = 6
 
@@ -45,7 +46,7 @@ class ClassDetail(QWidget):
     def __init__(self, load_source: SourceLoader, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._load_source = load_source
-        self._class: JavaClass | None = None
+        self._class: AnyClass | None = None
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._build_empty())
@@ -144,40 +145,42 @@ class ClassDetail(QWidget):
         self._class = None
         self._stack.setCurrentIndex(0)
 
-    def show_class(self, cls: JavaClass, role: ComponentRole) -> None:
+    def show_class(self, cls: AnyClass, role: AnyRole) -> None:
         self._class = cls
         self._stack.setCurrentIndex(1)
         self._name.setText(display_name(cls))
         self._name.setToolTip(cls.qualified_name)
-        self._location.setText(f"{cls.package or '(paquete por defecto)'} · líneas {cls.start_line}–{cls.end_line}")
+        where = cls.file if isinstance(cls, TSClass) else cls.package or "(paquete por defecto)"
+        self._location.setText(f"{where} · líneas {cls.start_line}–{cls.end_line}")
 
         _clear_layout(self._chips)
-        self._chips.addWidget(Chip(ROLE_LABELS[role][0], tone="accent", icon=f"role.{role.value}"))
+        self._chips.addWidget(Chip(role_label(role), tone="accent", icon=f"role.{role.value}"))
         self._chips.addWidget(Chip(cls.kind.value))
         if cls.superclass:
             self._chips.addWidget(Chip(f"extends {cls.superclass}", tone="muted"))
         for interface in cls.interfaces[:2]:
-            verb = "extends" if cls.kind is TypeKind.INTERFACE else "implements"
+            verb = "extends" if cls.kind in (TypeKind.INTERFACE, TSTypeKind.INTERFACE) else "implements"
             self._chips.addWidget(Chip(f"{verb} {interface}", tone="muted"))
         self._chips.addStretch(1)
 
         _clear_layout(self._annotations)
-        for annotation in cls.annotations[:_MAX_ANNOTATION_CHIPS]:
+        annotations = () if isinstance(cls, TSClass) else cls.annotations
+        for annotation in annotations[:_MAX_ANNOTATION_CHIPS]:
             chip = Chip(f"@{annotation.name}")
             chip.setToolTip(annotation.display)
             self._annotations.addWidget(chip)
-        if len(cls.annotations) > _MAX_ANNOTATION_CHIPS:
-            self._annotations.addWidget(muted(f"+{len(cls.annotations) - _MAX_ANNOTATION_CHIPS}", word_wrap=False))
+        if len(annotations) > _MAX_ANNOTATION_CHIPS:
+            self._annotations.addWidget(muted(f"+{len(annotations) - _MAX_ANNOTATION_CHIPS}", word_wrap=False))
         self._annotations.addStretch(1)
-        self._annotations_holder.setVisible(bool(cls.annotations))
+        self._annotations_holder.setVisible(bool(annotations))
 
         self._fill_members(cls)
         self._show_code(cls)
 
-    def _fill_members(self, cls: JavaClass) -> None:
+    def _fill_members(self, cls: AnyClass) -> None:
         self._members.blockSignals(True)
         self._members.clear()
-        if cls.enum_constants:
+        if isinstance(cls, JavaClass) and cls.enum_constants:
             self._add_group(f"CONSTANTES ({len(cls.enum_constants)})")
             for constant in cls.enum_constants:
                 self._members.addTopLevelItem(QTreeWidgetItem([constant]))
@@ -201,14 +204,20 @@ class ClassDetail(QWidget):
         item.setFont(0, font)
         self._members.addTopLevelItem(item)
 
-    def _field_item(self, f: JavaField) -> QTreeWidgetItem:
+    def _field_item(self, f: JavaField | TSField) -> QTreeWidgetItem:
         item = QTreeWidgetItem([f"{f.name}: {f.type}"])
         item.setIcon(0, icon("field", current_palette().syntax_number))
-        item.setToolTip(0, "\n".join([*(a.display for a in f.annotations), " ".join([*f.modifiers, f.type, f.name])]))
+        if isinstance(f, TSField):
+            item.setToolTip(0, " ".join([*f.modifiers, f"{f.name}: {f.type}"]))
+        else:
+            item.setToolTip(0, "\n".join([*(a.display for a in f.annotations),
+                                          " ".join([*f.modifiers, f.type, f.name])]))
         item.setData(0, _LINES_ROLE, (f.start_line, f.end_line))
         return item
 
-    def _method_item(self, m: JavaMethod) -> QTreeWidgetItem:
+    def _method_item(self, m: JavaMethod | TSMethod) -> QTreeWidgetItem:
+        if isinstance(m, TSMethod):
+            return self._ts_method_item(m)
         params = ", ".join(p.type for p in m.parameters)
         label = f"{m.name}({params})" + ("" if m.is_constructor else f": {m.return_type}")
         item = QTreeWidgetItem([label])
@@ -219,7 +228,15 @@ class ClassDetail(QWidget):
         item.setData(0, _LINES_ROLE, (m.start_line, m.end_line))
         return item
 
-    def _show_code(self, cls: JavaClass) -> None:
+    def _ts_method_item(self, m: TSMethod) -> QTreeWidgetItem:
+        signature = f"{m.name}({', '.join(m.parameters)})" + (f": {m.return_type}" if m.return_type else "")
+        item = QTreeWidgetItem([signature])
+        item.setIcon(0, icon("method", current_palette().syntax_annotation))
+        item.setToolTip(0, " ".join([*m.modifiers, signature]))
+        item.setData(0, _LINES_ROLE, (m.start_line, m.end_line))
+        return item
+
+    def _show_code(self, cls: AnyClass) -> None:
         self._file_label.setText(f"{PurePosixPath(cls.file).name}  ·  {cls.file}")
         try:
             snippet = self._load_source(cls)
@@ -227,7 +244,7 @@ class ClassDetail(QWidget):
             log.warning("No se pudo leer %s: %s", cls.file, exc)
             self._editor.set_code(f"// No se pudo leer el archivo: {exc}")
             return
-        self._editor.set_code(snippet.text, first_line=snippet.start_line)
+        self._editor.set_code(snippet.text, first_line=snippet.start_line, file=cls.file)
         if cls.enclosing:  # clase anidada: resalta su bloque dentro del archivo
             self._editor.highlight_lines(range(cls.start_line, cls.end_line + 1))
         else:

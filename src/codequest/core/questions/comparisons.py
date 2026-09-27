@@ -12,6 +12,7 @@ from codequest.core.analysis.package_tree import display_name
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.comparisons import Comparison, load_builtin_comparisons
 from codequest.core.questions.models import QuestionDraft
+from codequest.core.questions.react import REACT_RULES
 from codequest.core.questions.rules import DEFAULT_RULES, QuestionRule
 
 
@@ -19,7 +20,7 @@ class ComparisonRule(QuestionRule):
     """Reutiliza las reglas de Alternativas para encontrar dónde se usa cada concepto ancla."""
 
     def __init__(self, comparisons: Iterable[Comparison] | None = None,
-                 sources: tuple[QuestionRule, ...] = DEFAULT_RULES) -> None:
+                 sources: tuple[QuestionRule, ...] = (*DEFAULT_RULES, *REACT_RULES)) -> None:
         self._comparisons = tuple(load_builtin_comparisons() if comparisons is None else comparisons)
         self._sources = sources
 

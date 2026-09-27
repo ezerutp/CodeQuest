@@ -77,6 +77,8 @@ ICONS: dict[str, str] = {
     "role.component": "mdi6.puzzle-outline",
     "role.annotation": "mdi6.at",
     "role.other": "mdi6.code-braces",
+    "role.hook": "mdi6.link-variant",
+    "role.type": "mdi6.tag-outline",
 }
 
 

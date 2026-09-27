@@ -8,6 +8,7 @@ from enum import StrEnum
 from codequest.core.analysis.java.conventions import simple_type_name
 from codequest.core.analysis.java.models import JavaClass, TypeKind
 from codequest.core.analysis.model import ProjectModel
+from codequest.core.analysis.typescript.models import TSClass
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.models import Concept
 
@@ -70,14 +71,14 @@ class KnowledgeReport:
 
 def build_report(model: ProjectModel, kb: KnowledgeBase) -> KnowledgeReport:
     project_types = {c.name for c in model.classes}
-    project_annotations = {c.name for c in model.classes if c.kind is TypeKind.ANNOTATION}
+    project_annotations = {c.name for c in model.java_classes if c.kind is TypeKind.ANNOTATION}
 
     concept_usages: Counter[str] = Counter()
     gap_usages: Counter[tuple[GapKind, str]] = Counter()
     gap_classes: dict[tuple[GapKind, str], list[str]] = defaultdict(list)
     gap_imports: dict[tuple[GapKind, str], str] = {}
 
-    for cls in model.main_classes:
+    for cls in model.main_java_classes:  # conceptos de Java/Spring
         for kind, name in _references(cls):
             concept = kb.for_annotation(name) if kind is GapKind.ANNOTATION else kb.for_supertype(name)
             if concept is not None:
@@ -91,6 +92,14 @@ def build_report(model: ProjectModel, kb: KnowledgeBase) -> KnowledgeReport:
                 gap_classes[key].append(cls.qualified_name)
             if key not in gap_imports and (imported := _imported_as(cls, name)):
                 gap_imports[key] = imported
+
+    # React: cuenta los hooks conocidos. No hay huecos: casi cualquier llamada sería uno.
+    for cls in model.main_classes:
+        if isinstance(cls, TSClass):
+            for method in cls.methods:
+                for call in method.calls:
+                    if call.receiver in (None, "React") and (concept := kb.for_call(call.name)):
+                        concept_usages[concept.id] += 1
 
     used = tuple(ConceptUsage(kb.get(cid), n) for cid, n in concept_usages.most_common())
     gaps = tuple(

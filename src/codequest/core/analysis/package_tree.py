@@ -6,8 +6,10 @@ nodo "com.example.shop", igual que las carpetas compactas de VS Code.
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 
 from codequest.core.analysis.java.models import JavaClass
+from codequest.core.analysis.typescript.models import TSClass
 
 
 @dataclass
@@ -15,22 +17,30 @@ class PackageNode:
     name: str  # texto a mostrar: "controller" o "com.example.shop"
     full_name: str  # paquete completo: "com.example.shop.controller"
     packages: list["PackageNode"] = field(default_factory=list)
-    classes: list[JavaClass] = field(default_factory=list)
+    classes: list[JavaClass | TSClass] = field(default_factory=list)
 
     def class_count(self) -> int:
         return len(self.classes) + sum(p.class_count() for p in self.packages)
 
 
-def display_name(cls: JavaClass) -> str:
+def display_name(cls: JavaClass | TSClass) -> str:
     """Nombre de la clase tal y como se ve en el árbol: "Outer.Inner" para anidadas."""
     return f"{cls.enclosing}.{cls.name}" if cls.enclosing else cls.name
 
 
-def build_package_tree(classes: Iterable[JavaClass]) -> PackageNode:
+def package_of(cls: JavaClass | TSClass) -> str:
+    """Paquete Java o, en TypeScript, la carpeta del archivo con puntos ("src.components")."""
+    if isinstance(cls, JavaClass):
+        return cls.package
+    folder = PurePosixPath(cls.file).parent.as_posix()
+    return "" if folder == "." else folder.replace("/", ".")
+
+
+def build_package_tree(classes: Iterable[JavaClass | TSClass]) -> PackageNode:
     root = PackageNode(name="", full_name="")
     index: dict[str, PackageNode] = {"": root}
     for cls in classes:
-        _ensure(cls.package, index).classes.append(cls)
+        _ensure(package_of(cls), index).classes.append(cls)
     _sort(root)
     root.packages = [_compact(p) for p in root.packages]
     return root

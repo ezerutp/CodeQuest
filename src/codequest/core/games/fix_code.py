@@ -8,7 +8,10 @@ token a token (los espacios y comentarios no cuentan). Nunca se escribe en el pr
 from dataclasses import dataclass
 from enum import StrEnum
 
-from codequest.core.analysis.java.syntax import syntax_error_lines, tokens, tokens_by_line
+from tree_sitter import Language
+
+from codequest.core.analysis.java.parser import JAVA
+from codequest.core.analysis.syntax import grammar_for, syntax_error_lines, tokens, tokens_by_line
 from codequest.core.games.base import BaseGameMode, Evaluation, Outcome
 from codequest.core.games.catalog import FIX_CODE
 from codequest.core.lsp.documents import splice
@@ -52,20 +55,21 @@ def check_fix(question: Question, fix: CodeFix) -> FixResult:
     mutation = question.mutation
     if mutation is None:
         raise ValueError(f"La pregunta {question.key} no tiene un error que corregir")
-    edited_tokens = tokens(fix.edited)
-    if edited_tokens == tokens(fix.original):
+    grammar = grammar_for(question.snippet.file) if question.snippet else JAVA
+    edited_tokens = tokens(fix.edited, grammar)
+    if edited_tokens == tokens(fix.original, grammar):
         return FixResult(FixKind.FIXED)
-    if edited_tokens == tokens(mutation.apply(fix.original, fix.first_line)):
+    if edited_tokens == tokens(mutation.apply(fix.original, fix.first_line), grammar):
         return FixResult(FixKind.UNCHANGED)
-    if (error := _syntax_error(fix)) is not None:
+    if (error := _syntax_error(fix, grammar)) is not None:
         return FixResult(FixKind.SYNTAX_ERROR, None if error is True else error)
-    fixed_line = tokens_by_line(fix.original).get(mutation.line - fix.first_line)
-    if fixed_line in tokens_by_line(fix.edited).values():
+    fixed_line = tokens_by_line(fix.original, grammar).get(mutation.line - fix.first_line)
+    if fixed_line in tokens_by_line(fix.edited, grammar).values():
         return FixResult(FixKind.OTHER_CHANGES)
     return FixResult(FixKind.STILL_BROKEN)
 
 
-def _syntax_error(fix: CodeFix) -> int | None | bool:
+def _syntax_error(fix: CodeFix, grammar: Language) -> int | None | bool:
     """¿La versión del estudiante rompe la sintaxis? Devuelve la línea real del primer error dentro de
     lo editado, True si el error aparece fuera (p. ej. falta un `}` y se nota al final del archivo) o
     None si no hay errores nuevos. Los errores que ya existían no cuentan: un fragmento suelto (una
@@ -79,8 +83,9 @@ def _syntax_error(fix: CodeFix) -> int | None | bool:
     first, last_edited = offset + 1, offset + edited_count
     shift = edited_count - original_count
     # Errores previos, con las líneas posteriores a lo editado desplazadas como en la nueva versión.
-    before = {line if line <= offset + original_count else line + shift for line in syntax_error_lines(context)}
-    new = [line for line in syntax_error_lines(rebuilt) if line not in before]
+    before = {line if line <= offset + original_count else line + shift
+              for line in syntax_error_lines(context, grammar)}
+    new = [line for line in syntax_error_lines(rebuilt, grammar) if line not in before]
     if not new:
         return None
     inside = [line for line in new if first <= line <= last_edited]

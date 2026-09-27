@@ -127,6 +127,7 @@ def _concept(entry: Any, source: ConceptSource, origin: str) -> Concept:
         matches=ConceptMatch(
             annotations=_texts(matches.get("annotations"), "matches.annotations", where, allow_empty=True),
             supertypes=_texts(matches.get("supertypes"), "matches.supertypes", where, allow_empty=True),
+            calls=_texts(matches.get("calls"), "matches.calls", where, allow_empty=True),
         ),
         source=source,
     )
