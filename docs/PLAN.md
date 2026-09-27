@@ -332,7 +332,7 @@ Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23) · ✅ sugerencias en e
 
 ### v0.5 — "Multi-proyecto + React"
 
-Estado: ✅ discovery multi-proyecto y detección de React (GCQ-26).
+Estado: ✅ discovery multi-proyecto y detección de React (GCQ-26) · ✅ diálogo de selección (GCQ-27).
 - `ProjectDetector.detect_all()` descubre subproyectos (backend Spring Boot + frontend React) en un mismo árbol.
 - `Language.TYPESCRIPT`, `Framework.REACT`: detección vía `package.json` y archivos `.ts`/`.tsx`.
 - Diálogo de selección cuando hay múltiples proyectos (GCQ-27).

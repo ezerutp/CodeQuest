@@ -35,7 +35,7 @@ from codequest.services.knowledge_service import GenerationResult, KnowledgeServ
 from codequest.services.learning_service import LearningService
 from codequest.services.progress_service import ProgressService
 from codequest.services.project_service import ProjectService
-from codequest.ui.dialogs import confirm, warn
+from codequest.ui.dialogs import confirm, pick_project, warn
 from codequest.ui.navigation import PageId, Sidebar
 from codequest.ui.pages.base import Page
 from codequest.ui.pages.concepts.page import ConceptsPage
@@ -527,10 +527,13 @@ class MainWindow(QMainWindow):
         if not directory:
             return
         try:
-            project = self._service.detect(Path(directory))
+            projects = self._service.discover(Path(directory))
         except OSError as exc:
             log.warning("No se pudo abrir el proyecto %s: %s", directory, exc)
             warn(self, "No se pudo abrir el proyecto.", details=str(exc))
+            return
+        project = pick_project(self, projects)
+        if project is None:
             return
         self._set_project(project)
         self.show_page(PageId.HOME)
