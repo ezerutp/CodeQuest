@@ -15,6 +15,7 @@ from codequest.core.ai.factory import create_provider
 from codequest.core.knowledge.base import KnowledgeBase
 from codequest.core.knowledge.store import KnowledgeStore
 from codequest.core.lsp.jdtls import JDTLS_VERSION, JdtlsInstallation
+from codequest.core.lsp.typescript_server import TypeScriptServerInstallation
 from codequest.core.settings import SettingsStore
 from codequest.services.explain_service import ExplainService
 from codequest.services.java_language_service import JavaLanguageService
@@ -22,6 +23,7 @@ from codequest.services.knowledge_service import KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.progress_service import ProgressService
 from codequest.services.project_service import ProjectService
+from codequest.services.typescript_language_service import TypeScriptLanguageService
 from codequest.ui.dialogs import pick_project
 
 log = logging.getLogger(__name__)
@@ -110,7 +112,9 @@ def main(argv: list[str] | None = None) -> int:
     jdtls = jdtls_dir()
     java_ls = JavaLanguageService(JdtlsInstallation(jdtls / "server" / JDTLS_VERSION), jdtls / "projects",
                                   stderr_log=log_dir() / "jdtls.log")
+    ts_ls = TypeScriptLanguageService(
+        TypeScriptServerInstallation(Path.home() / ".local" / "share" / "codequest" / "tsserver"))
     window = MainWindow(context, service, learning, user_knowledge, knowledge, explain, progress,
-                        settings_store=settings_store, data_paths=paths, java_ls=java_ls)
+                        settings_store=settings_store, data_paths=paths, java_ls=java_ls, ts_ls=ts_ls)
     window.show()
     return app.exec()

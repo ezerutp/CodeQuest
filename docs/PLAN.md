@@ -337,6 +337,7 @@ Estado: ✅ discovery multi-proyecto y detección de React (GCQ-26) · ✅ diál
 - `Language.TYPESCRIPT`, `Framework.REACT`: detección vía `package.json` y archivos `.ts`/`.tsx`.
 - Diálogo de selección cuando hay múltiples proyectos (GCQ-27).
 - Análisis TypeScript/React: `TreeSitterTypeScriptParser` (tree-sitter-typescript), `ReactAnalyzer` con roles (Component, Hook, Service, Type, Enum, Utility), detección de componentes por retorno de JSX y hooks por llamadas a useState/useEffect/etc.
+- LSP de TypeScript: `typescript-language-server` (mismo patrón que jdtls, sin copia espejo porque no escribe archivos). Integrado en `MainWindow._sync_language_server()` y `LearnPage`.
 
 ---
 
