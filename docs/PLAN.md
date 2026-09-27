@@ -327,8 +327,16 @@ Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23) · ✅ sugerencias en e
 - Soporte multi-módulo robusto.
 - Modo **¿Qué pasaría si…?**.
 - Proveedores OpenAI / Gemini / modelo local.
-- Plugins de lenguaje (Kotlin, Python, TypeScript) usando el `AnalyzerRegistry`.
+- Plugins de lenguaje (Kotlin, Python) usando el `AnalyzerRegistry`.
 - Tema claro, i18n (es/en), empaquetado distribuible, integración YouTube real.
+
+### v0.5 — "Multi-proyecto + React"
+
+Estado: ✅ discovery multi-proyecto y detección de React (GCQ-26).
+- `ProjectDetector.detect_all()` descubre subproyectos (backend Spring Boot + frontend React) en un mismo árbol.
+- `Language.TYPESCRIPT`, `Framework.REACT`: detección vía `package.json` y archivos `.ts`/`.tsx`.
+- Diálogo de selección cuando hay múltiples proyectos (GCQ-27).
+- Análisis TypeScript/React: parser tree-sitter, `ReactAnalyzer`, preguntas sobre componentes/hooks (GCQ-28).
 
 ---
 
@@ -386,7 +394,7 @@ Cambios respecto a la propuesta original y por qué:
 | Clase | Responsabilidad |
 |-------|-----------------|
 | `ProjectInfo` | Identidad y tipo del proyecto: raíz, nombre, marcadores, lenguaje, framework, build tool, git remote. Inmutable. |
-| `ProjectDetector` | Dado un directorio, produce `ProjectInfo`. Solo mira marcadores y archivos de build. |
+| `ProjectDetector` | Dado un directorio, produce `ProjectInfo`. `detect_all()` descubre subproyectos. Solo mira marcadores y archivos de build. |
 | `SourceFile` | Archivo relevante: ruta relativa, tipo, tamaño. Carga el contenido bajo demanda (solo lectura). |
 | `ProjectScanner` | Recorre el árbol podando carpetas ignoradas y devuelve `[SourceFile]`. Nada más. |
 | `ProjectModel` | Resultado del análisis: `ProjectInfo` + archivos + clases + índices (por rol, por nombre). Lo consume la UI y el generador. |
