@@ -7,11 +7,13 @@ from pathlib import Path
 
 class Language(StrEnum):
     JAVA = "Java"
+    TYPESCRIPT = "TypeScript"
     UNKNOWN = "Desconocido"
 
 
 class Framework(StrEnum):
     SPRING_BOOT = "Spring Boot"
+    REACT = "React"
     NONE = "Sin framework"
 
 
@@ -40,8 +42,8 @@ class ProjectInfo:
 
     @property
     def is_supported(self) -> bool:
-        """El MVP solo sabe generar ejercicios para proyectos Java."""
-        return self.language is Language.JAVA
+        """Lenguajes para los que CodeQuest genera ejercicios."""
+        return self.language in (Language.JAVA, Language.TYPESCRIPT)
 
     @property
     def stack(self) -> tuple[str, ...]:
