@@ -16,6 +16,7 @@ dependencies = [
     # 0.26.0 libera de más los enteros de Point.row/column: segfault en archivos de más de 256 líneas.
     "tree-sitter>=0.25,<0.26",
     "tree-sitter-java>=0.23",
+    "tree-sitter-typescript>=0.23",
 ]
 
 [project.optional-dependencies]
