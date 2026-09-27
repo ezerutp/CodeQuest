@@ -27,7 +27,7 @@ from codequest.core.knowledge.models import ConceptSource
 from codequest.core.lsp.jdtls import DOWNLOAD_SIZE_MB, JDTLS_VERSION, MIN_JAVA_VERSION
 from codequest.core.lsp.models import ServerState, ServerStatus
 from codequest.core.persistence.progress import project_id_for
-from codequest.core.project.models import ProjectInfo
+from codequest.core.project.models import Language, ProjectInfo
 from codequest.core.settings import Settings, SettingsStore
 from codequest.services.explain_service import ExplainService
 from codequest.services.java_language_service import JavaLanguageService, LanguageServerCancelled
@@ -35,6 +35,7 @@ from codequest.services.knowledge_service import GenerationResult, KnowledgeServ
 from codequest.services.learning_service import LearningService
 from codequest.services.progress_service import ProgressService
 from codequest.services.project_service import ProjectService
+from codequest.services.typescript_language_service import TypeScriptLanguageService
 from codequest.ui.dialogs import confirm, pick_project, warn
 from codequest.ui.navigation import PageId, Sidebar
 from codequest.ui.pages.base import Page
@@ -54,7 +55,8 @@ class MainWindow(QMainWindow):
                  learning: LearningService | None = None, knowledge_dir: Path | None = None,
                  knowledge: KnowledgeService | None = None, explain: ExplainService | None = None,
                  progress: ProgressService | None = None, settings_store: SettingsStore | None = None,
-                 data_paths: DataPaths | None = None, java_ls: JavaLanguageService | None = None) -> None:
+                 data_paths: DataPaths | None = None, java_ls: JavaLanguageService | None = None,
+                 ts_ls: TypeScriptLanguageService | None = None) -> None:
         super().__init__()
         self._settings_store = settings_store
         self._settings = settings_store.load() if settings_store else Settings()
@@ -87,9 +89,11 @@ class MainWindow(QMainWindow):
         self._dashboard.concepts_requested.connect(lambda: self.show_page(PageId.CONCEPTS))
         self._add_page(PageId.HOME, self._dashboard)
 
+        # El LSP depende del lenguaje: Java usa jdtls, TypeScript/React usa typescript-language-server
+        active_ls = ts_ls if context.project.language is Language.TYPESCRIPT else java_ls
         self._learn = LearnPage(load_snippet=lambda ref: service.read_snippet(self._model, ref),
-                                complete=java_ls.complete if java_ls is not None else None,
-                                diagnose=java_ls.diagnostics if java_ls is not None else None)
+                                complete=active_ls.complete if active_ls is not None else None,
+                                diagnose=active_ls.diagnostics if active_ls is not None else None)
         self._learn.mode_selected.connect(self._start_mode)
         self._learn.play_again.connect(lambda: self._start_round(self._last_scope, self._last_mode))
         self._learn.go_home.connect(lambda: self.show_page(PageId.HOME))
@@ -144,8 +148,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._stack, 1)
         self.setCentralWidget(central)
 
-        # Servidor de lenguaje Java (opcional): una tarea a la vez; la siguiente espera en `_ls_pending`.
+        # Servidor de lenguaje (opcional): una tarea a la vez; la siguiente espera en `_ls_pending`.
         self._java_ls = java_ls
+        self._ts_ls = ts_ls
         self._ls_status = ServerStatus(ServerState.STOPPED)
         self._ls_pending: TaskFunction | None = None
         self._ls_relay = SignalRelay(self)
@@ -272,17 +277,20 @@ class MainWindow(QMainWindow):
         self._refresh_knowledge()
         self._sync_language_server()
 
-    # --- servidor de lenguaje Java (jdtls) ---------------------------------------------
+    # --- servidor de lenguaje (jdtls / typescript-language-server) --------------------
 
     def _sync_language_server(self) -> None:
-        """Arranca jdtls para el proyecto analizado; si no hay proyecto Java, lo para y solo comprueba
-        si está instalado y hay Java. Se llama al cambiar de proyecto y tras instalar."""
-        service = self._java_ls
-        if service is None:
-            return
+        """Arranca el LSP del proyecto analizado (jdtls para Java, typescript-language-server
+        para TypeScript/React). Se llama al cambiar de proyecto y tras instalar."""
         project = self._context.project if self._model is not None and self._context.project.is_supported else None
         if project is None:
-            self._run_language_task(lambda _progress, _cancel: (service.stop(), service.check())[1])
+            self._stop_all_language_servers()
+            return
+        if project.language is Language.TYPESCRIPT:
+            service = self._ts_ls
+        else:
+            service = self._java_ls
+        if service is None:
             return
         project_id = project_id_for(project)
 
@@ -294,6 +302,11 @@ class MainWindow(QMainWindow):
                 return None
 
         self._run_language_task(start)
+
+    def _stop_all_language_servers(self) -> None:
+        for service in (self._java_ls, self._ts_ls):
+            if service is not None:
+                self._run_language_task(lambda _progress, _cancel: (service.stop(), service.check())[1])
 
     def _run_language_task(self, function: TaskFunction) -> None:
         if self._ls_task.is_running:  # p. ej. otro proyecto mientras jdtls arrancaba
