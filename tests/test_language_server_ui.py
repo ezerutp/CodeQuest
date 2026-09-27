@@ -71,3 +71,22 @@ def test_window_starts_the_server_after_the_analysis(qapp: QApplication, tmp_pat
     assert (tmp_path / "projects").is_dir() and not (shop_project / ".project").exists()
     window.close()
     assert service.status.state is ServerState.STOPPED
+
+
+def test_an_older_pending_task_does_not_undo_a_newer_one(qapp: QApplication, shop_project: Path) -> None:
+    """Carrera real: el "parar" encolado al abrir el proyecto se ejecutaba después del arranque
+    posterior al análisis y detenía el servidor recién listo."""
+    projects = ProjectService()
+    window = MainWindow(AppContext(projects.detect(shop_project), AIStatus(False, None, "")), projects)
+    ran: list[str] = []
+    window._ls_pending = lambda _progress, _cancel: ran.append("parar (antigua)")
+    window._start_pending_language_task()  # programada para la siguiente vuelta del bucle…
+    window._run_language_task(lambda _progress, _cancel: ran.append("arrancar (nueva)"))  # …pero llega otra antes
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and (window._ls_task.is_running or not ran):
+        qapp.processEvents()
+        time.sleep(0.01)
+    for _ in range(10):
+        qapp.processEvents()
+    assert ran == ["arrancar (nueva)"]
+    window.close()
