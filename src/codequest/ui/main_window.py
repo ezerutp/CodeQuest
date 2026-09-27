@@ -320,10 +320,13 @@ class MainWindow(QMainWindow):
                     lambda _progress, _cancel, service=service: (service.stop(), service.check())[1])
 
     def _run_language_task(self, function: TaskFunction) -> None:
+        """La última petición manda: una tarea pendiente más antigua (p. ej. "parar" al abrir el
+        proyecto) no debe ejecutarse después y deshacer un arranque posterior."""
         if self._ls_task.is_running:  # p. ej. otro proyecto mientras jdtls arrancaba
             self._ls_pending = function
             self._ls_task.cancel()
         else:
+            self._ls_pending = None
             self._ls_task.start(function)
 
     def _on_ls_task_finished(self, status: ServerStatus | None) -> None:
@@ -338,8 +341,13 @@ class MainWindow(QMainWindow):
     def _start_pending_language_task(self) -> None:
         # El hilo de la tarea anterior termina justo después de su señal: se espera a la vuelta del bucle.
         if self._ls_pending is not None:
-            function, self._ls_pending = self._ls_pending, None
-            QTimer.singleShot(0, lambda: self._run_language_task(function))
+            QTimer.singleShot(0, self._run_pending_language_task)
+
+    def _run_pending_language_task(self) -> None:
+        # Se lee al ejecutarse, no al programarse: entretanto pudo llegar una petición más nueva.
+        function, self._ls_pending = self._ls_pending, None
+        if function is not None:
+            self._run_language_task(function)
 
     def _on_ls_status(self, status: ServerStatus) -> None:
         self._ls_status = status
