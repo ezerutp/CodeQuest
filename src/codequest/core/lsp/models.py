@@ -5,6 +5,10 @@ from enum import StrEnum
 from typing import Any
 
 
+class LanguageServerCancelled(Exception):
+    """El arranque del servidor se canceló (otro proyecto, cierre de la app). No es un fallo."""
+
+
 class ServerState(StrEnum):
     NOT_INSTALLED = "not_installed"  # jdtls no está descargado
     NO_JAVA = "no_java"  # falta un JDK compatible

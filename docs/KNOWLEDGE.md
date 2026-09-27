@@ -31,10 +31,12 @@ source: user          # opcional, solo en la carpeta del usuario: user | ai
 concepts:
   - id: lombok.data                 # único y estable
     title: "@Data"
-    topic: other                    # web | di | jpa | data | transactions | validation | errors | config | other
+    topic: other                    # web | di | jpa | data | transactions | validation | errors | config |
+                                    # react | server-state | routing | forms | other
     matches:                        # qué explica este concepto (nombres simples)
       annotations: [Data]
       supertypes: []
+      calls: []                     # funciones de TypeScript/React: [useState]
     summary: Genera getters, setters, equals, hashCode y toString de la clase.
     explanation: |
       Primer párrafo.
@@ -53,7 +55,7 @@ concepts:
 Todo concepto, venga de donde venga, se valida al cargarse (`core/knowledge/validation.py`):
 
 - Todos los campos de texto son obligatorios.
-- `matches` indica al menos una anotación o supertipo.
+- `matches` indica al menos una anotación, supertipo o llamada (`calls`, para React).
 - Al menos **3 distractores distintos**, y ninguno igual a la respuesta.
 - **La respuesta correcta (`summary`) no puede ser más de un 10 % más larga que el distractor
   más largo.** Si la correcta destaca por longitud, se acierta sin saber.

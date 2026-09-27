@@ -15,6 +15,7 @@ from codequest.core.lsp.client import LspClient, LspError
 from codequest.core.lsp.models import (
     CompletionList,
     Diagnostic,
+    LanguageServerCancelled,
     ServerState,
     ServerStatus,
     completion_list,
@@ -30,10 +31,6 @@ DIAGNOSTICS_WAIT_S = 5.0
 
 ClientFactory = Callable[..., LspClient]
 StatusCallback = Callable[[ServerStatus], None]
-
-
-class LanguageServerCancelled(Exception):
-    pass
 
 
 class TypeScriptLanguageService:

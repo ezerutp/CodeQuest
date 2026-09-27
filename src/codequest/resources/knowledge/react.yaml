@@ -1,0 +1,294 @@
+# React: hooks del núcleo, TanStack Query, React Router y react-hook-form
+# Formato: docs/KNOWLEDGE.md
+
+version: 1
+concepts:
+- id: react.use-state
+  title: useState
+  topic: react
+  matches:
+    calls:
+    - useState
+  summary: Guarda un valor propio del componente y lo vuelve a dibujar cada vez que ese valor cambia.
+  explanation: |
+    useState(inicial) devuelve un par: el valor actual y una función para cambiarlo, por ejemplo const [count, setCount] = useState(0). React recuerda el valor entre renderizados del mismo componente.
+
+    Al llamar a setCount con un valor nuevo, React vuelve a ejecutar el componente y actualiza la pantalla. Si cambias la variable directamente (count = 5), React no se entera y la pantalla no cambia.
+  analogy: 'Es como la pizarra de un aula: el componente apunta ahí un dato, y cada vez que alguien lo borra y escribe otro, toda la clase mira de nuevo.'
+  distractors:
+  - Guarda un valor en el navegador para que siga ahí después de recargar la página por completo.
+  - Crea una variable global que comparten todos los componentes de la aplicación a la vez.
+  - Guarda un valor que puede cambiar sin que React vuelva a dibujar el componente nunca.
+  youtube_query: React useState explicado
+- id: react.use-effect
+  title: useEffect
+  topic: react
+  matches:
+    calls:
+    - useEffect
+  summary: Ejecuta código después de dibujar el componente, y otra vez cuando cambian sus dependencias.
+  explanation: |
+    useEffect(() => { ... }, [deps]) sirve para efectos secundarios: pedir datos, suscribirse a eventos, arrancar un temporizador o tocar el DOM. React lo ejecuta después de pintar, no durante el renderizado.
+
+    La lista de dependencias decide cuándo se repite: [] solo al montar el componente, [id] cada vez que cambia id. Si devuelve una función, React la llama para limpiar (por ejemplo, cancelar la suscripción) antes de repetir el efecto o al desmontar.
+  analogy: 'Es como el camarero que, una vez servida la mesa, vuelve a pasar solo si cambia algo del pedido.'
+  distractors:
+  - Ejecuta el código antes de dibujar el componente para calcular el HTML que se va a mostrar.
+  - Ejecuta el código una sola vez al arrancar la aplicación, sin importar qué componentes se usan.
+  - Guarda el resultado de un cálculo costoso para no repetirlo en cada renderizado del componente.
+  youtube_query: React useEffect explicado dependencias
+- id: react.use-memo
+  title: useMemo
+  topic: react
+  matches:
+    calls:
+    - useMemo
+  summary: Recuerda el resultado de un cálculo y solo lo repite cuando cambian sus dependencias.
+  explanation: |
+    useMemo(() => calcular(datos), [datos]) ejecuta la función en el primer renderizado y guarda lo que devuelve. En los siguientes renderizados devuelve el valor guardado, salvo que haya cambiado alguna dependencia.
+
+    Sirve para evitar cálculos costosos (filtrar o agrupar listas grandes) y para mantener la misma referencia de un objeto o array entre renderizados. No sirve para efectos secundarios: eso es trabajo de useEffect.
+  analogy: 'Es como apuntar el resultado de una cuenta larga en un pósit: mientras los números no cambien, lees el pósit en vez de volver a calcular.'
+  distractors:
+  - Ejecuta la función después de dibujar el componente para sincronizarlo con el servidor.
+  - Guarda el valor en la memoria del navegador para que sobreviva al cerrar la pestaña.
+  - Convierte la función en asíncrona para que el cálculo no bloquee nunca la pantalla.
+  youtube_query: React useMemo explicado
+- id: react.use-callback
+  title: useCallback
+  topic: react
+  matches:
+    calls:
+    - useCallback
+  summary: Devuelve siempre la misma función entre renderizados mientras no cambien sus dependencias.
+  explanation: |
+    Cada vez que un componente se renderiza, las funciones definidas dentro se crean de nuevo. useCallback(fn, [deps]) guarda la función y devuelve exactamente la misma referencia hasta que cambie alguna dependencia.
+
+    Es útil cuando la función se pasa a un hijo optimizado con memo o aparece en las dependencias de un useEffect: una función nueva en cada renderizado haría que el efecto o el hijo se repitieran sin necesidad.
+  analogy: 'Es como darle a alguien siempre el mismo número de teléfono: mientras no te mudes, no tiene que actualizar su agenda.'
+  distractors:
+  - Ejecuta la función inmediatamente y guarda el valor que devuelve para usarlo después.
+  - Llama a la función automáticamente cada vez que el componente termina de dibujarse.
+  - Convierte la función en un manejador de eventos que el navegador registra globalmente.
+  youtube_query: React useCallback explicado
+- id: react.use-ref
+  title: useRef
+  topic: react
+  matches:
+    calls:
+    - useRef
+  summary: Guarda un valor que persiste entre renderizados sin provocar uno nuevo al cambiarlo.
+  explanation: |
+    useRef(inicial) devuelve un objeto { current } que React conserva durante toda la vida del componente. Puedes cambiar ref.current cuando quieras y React no volverá a dibujar nada.
+
+    Se usa para acceder a un elemento del DOM (<input ref={ref} />, luego ref.current.focus()) o para guardar datos que no se muestran: el id de un temporizador, el valor anterior de una prop.
+  analogy: 'Es como un cajón debajo del escritorio: guardas y cambias cosas dentro sin que nadie en la oficina se entere.'
+  distractors:
+  - Guarda un valor y vuelve a dibujar el componente cada vez que su contenido se modifica.
+  - Crea una copia del componente para poder compararla con la versión anterior al actualizar.
+  - Enlaza el componente con una URL para que el navegador pueda volver a él con el botón atrás.
+  youtube_query: React useRef explicado
+- id: react.use-context
+  title: useContext
+  topic: react
+  matches:
+    calls:
+    - useContext
+  summary: Lee el valor de un contexto que un componente superior comparte con todo su árbol.
+  explanation: |
+    Con createContext se crea un contexto y con <MiContexto.Provider value={...}> un componente lo ofrece a todos sus descendientes. useContext(MiContexto) lee ese valor desde cualquier nivel, sin pasarlo prop a prop.
+
+    Cuando el Provider cambia su value, todos los componentes que lo leen se vuelven a dibujar. Es la forma habitual de compartir el usuario autenticado, el tema o el idioma.
+  analogy: 'Es como el hilo musical de un edificio: el que lo pone está en recepción, y cualquier piso lo escucha sin tender cables.'
+  distractors:
+  - Crea un estado nuevo y privado que ningún otro componente de la aplicación puede leer.
+  - Pasa automáticamente todas las props del componente padre a cada uno de sus hijos directos.
+  - Guarda el valor en el almacenamiento local para compartirlo entre pestañas del navegador.
+  youtube_query: React useContext explicado
+- id: react.use-reducer
+  title: useReducer
+  topic: react
+  matches:
+    calls:
+    - useReducer
+  summary: Gestiona un estado con una función que decide el siguiente estado según la acción recibida.
+  explanation: |
+    useReducer(reducer, inicial) devuelve [state, dispatch]. En vez de llamar a un setter con el valor nuevo, llamas a dispatch({ type: 'agregar', item }) y la función reducer(state, action) calcula el siguiente estado.
+
+    Conviene cuando el estado tiene varias partes que cambian juntas o muchas formas de cambiar: toda la lógica queda en un solo sitio y es fácil de probar.
+  analogy: 'Es como una ventanilla de trámites: entregas un formulario con lo que quieres hacer y el funcionario decide cómo queda tu expediente.'
+  distractors:
+  - Reduce el tamaño del componente eliminando las partes que no se ven en la pantalla actual.
+  - Combina varios componentes en uno solo para que React tenga menos elementos que dibujar.
+  - Ejecuta una función cada vez que cambia una prop para reducir el número de renderizados.
+  youtube_query: React useReducer explicado
+- id: react.use-id
+  title: useId
+  topic: react
+  matches:
+    calls:
+    - useId
+  summary: Genera un identificador único y estable para enlazar elementos, como un label con su input.
+  explanation: |
+    useId() devuelve un texto único por cada lugar donde se usa, y se mantiene igual entre renderizados. Sirve para atributos de accesibilidad: <label htmlFor={id}> y <input id={id}>, aria-describedby, etc.
+
+    No sirve como key de listas ni para identificar datos: es un id para el HTML, no para tu base de datos.
+  analogy: 'Es como la etiqueta con el nombre que te dan en un congreso: sirve para que los demás te encuentren, no es tu DNI.'
+  distractors:
+  - Genera la clave primaria de un registro nuevo antes de enviarlo al servidor para guardarlo.
+  - Devuelve el identificador del usuario que ha iniciado sesión en la aplicación actual.
+  - Crea una key aleatoria distinta en cada renderizado para forzar que la lista se redibuje.
+  youtube_query: React useId accesibilidad
+- id: tanstack.use-query
+  title: useQuery
+  topic: server-state
+  matches:
+    calls:
+    - useQuery
+  summary: Pide datos al servidor, los guarda en caché por su queryKey y expone su estado de carga y error.
+  explanation: |
+    useQuery({ queryKey: ['usuarios'], queryFn: obtenerUsuarios }) llama a queryFn y devuelve data, isLoading, isError y más. El resultado se guarda en una caché compartida bajo esa queryKey.
+
+    Si otro componente pide la misma queryKey, recibe los datos de la caché sin repetir la petición. TanStack Query también vuelve a pedirlos cuando se consideran viejos, al recuperar el foco de la ventana o cuando se invalidan.
+  analogy: 'Es como una biblioteca con fichero: la primera vez van a buscar el libro al almacén, y las siguientes te lo dan del estante mientras no esté desactualizado.'
+  distractors:
+  - Envía los cambios del formulario al servidor y espera a que se guarden antes de continuar.
+  - Pide los datos una sola vez al arrancar la aplicación y los deja fijos hasta recargar.
+  - Guarda los datos en el estado del componente y los borra cuando otro componente los usa.
+  youtube_query: TanStack Query useQuery explicado
+- id: tanstack.use-mutation
+  title: useMutation
+  topic: server-state
+  matches:
+    calls:
+    - useMutation
+  summary: Prepara una operación que cambia datos en el servidor y la ejecuta al llamar a mutate.
+  explanation: |
+    useMutation({ mutationFn: guardarUsuario }) no hace nada al renderizar: devuelve mutate (o mutateAsync) y el estado de la operación (isPending, isError, isSuccess). La petición se lanza cuando llamas a mutate(datos), normalmente desde un submit o un clic.
+
+    En onSuccess se suele invalidar la caché (queryClient.invalidateQueries) para que las consultas relacionadas vuelvan a pedir los datos actualizados.
+  analogy: 'Es como dejar preparado un sobre con la dirección escrita: no se envía hasta que lo echas al buzón.'
+  distractors:
+  - Pide datos al servidor en cuanto se dibuja el componente y los guarda en la caché compartida.
+  - Cambia el estado local del componente sin enviar nada al servidor hasta recargar la página.
+  - Se ejecuta automáticamente cada pocos segundos para mantener los datos siempre al día.
+  youtube_query: TanStack Query useMutation explicado
+- id: tanstack.use-query-client
+  title: useQueryClient
+  topic: server-state
+  matches:
+    calls:
+    - useQueryClient
+  summary: Da acceso a la caché de TanStack Query para invalidar, leer o actualizar consultas.
+  explanation: |
+    useQueryClient() devuelve el QueryClient que la aplicación registró con <QueryClientProvider>. Con él puedes invalidar consultas (invalidateQueries), leer o escribir datos de la caché (getQueryData, setQueryData) o cancelarlas.
+
+    El uso típico es tras una mutación: invalidar ['usuarios'] para que las listas de usuarios se vuelvan a pedir y muestren el cambio.
+  analogy: 'Es como la llave del almacén de la biblioteca: con ella puedes retirar libros viejos para que se vuelvan a pedir.'
+  distractors:
+  - Crea una conexión nueva con el servidor para cada componente que necesita pedir datos.
+  - Devuelve la lista de peticiones HTTP que el navegador ha hecho desde que abriste la página.
+  - Configura la URL base y las cabeceras que usarán todas las llamadas a la API de la app.
+  youtube_query: TanStack Query invalidateQueries useQueryClient
+- id: router.use-navigate
+  title: useNavigate
+  topic: routing
+  matches:
+    calls:
+    - useNavigate
+  summary: Devuelve una función para cambiar de ruta desde el código, por ejemplo tras guardar un formulario.
+  explanation: |
+    const navigate = useNavigate() da una función: navigate('/servicios/42') lleva a esa ruta sin recargar la página, y navigate(-1) vuelve atrás en el historial.
+
+    Se usa cuando el cambio de página depende de la lógica (después de un login o de guardar); para un enlace que el usuario pulsa, lo natural es <Link to="...">.
+  analogy: 'Es como el GPS del coche: le das una dirección desde el volante y te lleva sin que tengas que bajarte a mirar el mapa.'
+  distractors:
+  - Recarga la página completa desde el servidor para mostrar la ruta indicada con datos nuevos.
+  - Devuelve la ruta actual del navegador para mostrarla como título en la cabecera de la app.
+  - Registra una ruta nueva en el router para que la aplicación pueda mostrar esa página.
+  youtube_query: React Router useNavigate
+- id: router.use-params
+  title: useParams
+  topic: routing
+  matches:
+    calls:
+    - useParams
+  summary: Lee los parámetros variables de la URL actual, como el id de /servicios/:id.
+  explanation: |
+    Si la ruta se definió como /servicios/:id y el usuario está en /servicios/42, useParams() devuelve { id: '42' }. Los valores llegan siempre como texto: si necesitas un número, conviértelo.
+
+    Así un mismo componente de detalle sirve para todos los registros: lee el id de la URL y pide los datos de ese registro.
+  analogy: 'Es como leer el número de habitación en la llave del hotel: la puerta es la misma para todos, el número te dice cuál es la tuya.'
+  distractors:
+  - Lee los parámetros de consulta que van después del signo ? en la dirección de la página.
+  - Devuelve las props que el componente padre le pasó al componente que se está dibujando.
+  - Define qué parámetros acepta la ruta y rechaza la navegación si falta alguno de ellos.
+  youtube_query: React Router useParams
+- id: router.use-search-params
+  title: useSearchParams
+  topic: routing
+  matches:
+    calls:
+    - useSearchParams
+  summary: Lee y cambia los parámetros de consulta de la URL, lo que va después del signo ?.
+  explanation: |
+    const [searchParams, setSearchParams] = useSearchParams() funciona como useState pero guardado en la URL: searchParams.get('pagina') lee ?pagina=2 y setSearchParams({ pagina: '3' }) la cambia.
+
+    Es ideal para filtros, búsquedas y paginación: el estado sobrevive a recargar la página y se puede compartir copiando el enlace.
+  analogy: 'Es como apuntar tus filtros de búsqueda en la dirección de la tienda: quien reciba el enlace ve lo mismo que tú.'
+  distractors:
+  - Lee los parámetros variables del camino de la ruta, como el id de /servicios/:id actual.
+  - Busca un texto dentro de los datos del componente y devuelve solo las filas que coinciden.
+  - Guarda los filtros en el almacenamiento local para que nadie más pueda ver la búsqueda.
+  youtube_query: React Router useSearchParams filtros
+- id: rhf.use-form
+  title: useForm
+  topic: forms
+  matches:
+    calls:
+    - useForm
+  summary: 'Crea y controla un formulario con react-hook-form: registro de campos, validación y envío.'
+  explanation: |
+    useForm() devuelve register, handleSubmit, formState (errores, isSubmitting…), reset y más. Cada input se conecta con {...register('nombre')} y handleSubmit(onSubmit) valida antes de llamar a tu función.
+
+    Los valores viven fuera del estado de React, así que escribir en un campo no vuelve a dibujar todo el formulario. Con un resolver (por ejemplo zodResolver) la validación usa un esquema.
+  analogy: 'Es como el encargado de una oficina de trámites: reparte los formularios, revisa que estén bien rellenos y solo entonces los pasa a ventanilla.'
+  distractors:
+  - Envía cada campo al servidor en cuanto el usuario lo modifica, sin esperar al botón de enviar.
+  - Genera automáticamente el HTML del formulario a partir de la tabla de la base de datos.
+  - Guarda cada campo en un useState propio para dibujar el formulario completo con cada tecla.
+  youtube_query: react-hook-form useForm tutorial
+- id: rhf.use-watch
+  title: useWatch
+  topic: forms
+  matches:
+    calls:
+    - useWatch
+  summary: Observa el valor de uno o varios campos del formulario y redibuja solo donde se usa.
+  explanation: |
+    useWatch({ control, name: 'tipo' }) devuelve el valor actual del campo y se actualiza cuando cambia. Solo el componente que llama a useWatch se vuelve a dibujar, no todo el formulario.
+
+    Se usa para mostrar u ocultar partes del formulario según lo elegido, o para calcular totales mientras el usuario escribe.
+  analogy: 'Es como poner una cámara solo en la puerta que te interesa, en vez de vigilar todo el edificio.'
+  distractors:
+  - Valida el campo en cada pulsación y bloquea el envío hasta que el valor sea correcto.
+  - Guarda los valores del formulario en la URL para poder recuperarlos al recargar la página.
+  - Envía el formulario automáticamente cuando el campo observado deja de estar vacío.
+  youtube_query: react-hook-form useWatch
+- id: rhf.use-field-array
+  title: useFieldArray
+  topic: forms
+  matches:
+    calls:
+    - useFieldArray
+  summary: 'Maneja una lista dinámica de campos del formulario: añadir, quitar o reordenar filas.'
+  explanation: |
+    useFieldArray({ control, name: 'pasos' }) devuelve fields (las filas actuales, cada una con un id estable) y funciones como append, remove, move o insert.
+
+    Se usa en formularios donde el usuario añade elementos repetidos: pasos de un flujo, teléfonos, líneas de una factura. Usa field.id como key al dibujar la lista.
+  analogy: 'Es como una libreta con hojas de anillas: puedes añadir, quitar o cambiar de orden las hojas sin rehacer la libreta.'
+  distractors:
+  - Convierte el formulario en una tabla de solo lectura que muestra los datos ya guardados.
+  - Valida que todos los campos de un array tengan el mismo tipo antes de enviar el formulario.
+  - Crea un formulario nuevo e independiente por cada elemento de la lista que se recibe.
+  youtube_query: react-hook-form useFieldArray

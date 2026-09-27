@@ -36,6 +36,8 @@ def concept_to_yaml(concept: Concept) -> str:
         matches["annotations"] = list(concept.matches.annotations)
     if concept.matches.supertypes:
         matches["supertypes"] = list(concept.matches.supertypes)
+    if concept.matches.calls:
+        matches["calls"] = list(concept.matches.calls)
     document = {
         "version": SUPPORTED_VERSION,
         "source": concept.source.value,

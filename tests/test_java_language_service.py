@@ -6,8 +6,8 @@ import pytest
 
 from codequest.core.lsp.client import LspClient
 from codequest.core.lsp.jdtls import JavaRuntime, JdtlsInstallation, config_dir_name
-from codequest.core.lsp.models import ServerState
-from codequest.services.java_language_service import JavaLanguageService, LanguageServerCancelled
+from codequest.core.lsp.models import LanguageServerCancelled, ServerState
+from codequest.services.java_language_service import JavaLanguageService
 
 SERVER = Path(__file__).parent / "fixtures" / "fake_lsp_server.py"
 JAVA = JavaRuntime(Path("/jdk/bin/java"), "21.0.4", 21)

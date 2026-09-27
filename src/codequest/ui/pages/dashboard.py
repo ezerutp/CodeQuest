@@ -5,10 +5,12 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QV
 
 from codequest.app.context import AppContext
 from codequest.core.analysis.model import ProjectModel
+from codequest.core.analysis.react.roles import ReactRole
 from codequest.core.analysis.roles import ComponentRole
 from codequest.core.knowledge.coverage import KnowledgeReport
+from codequest.core.project.models import Framework
 from codequest.services.progress_service import ProgressOverview
-from codequest.ui.formatting import ai_detail, ai_indicator, duration, inline_code_html, plural, role_count
+from codequest.ui.formatting import ai_detail, ai_indicator, duration, inline_code_html, plural, role_count, role_label
 from codequest.ui.icons import icon
 from codequest.ui.pages.base import Page
 from codequest.ui.theme import current_palette
@@ -26,16 +28,16 @@ from codequest.ui.widgets import (
 )
 
 # Roles con tarjeta propia; el resto se muestra como chips ("4 Enums", "2 DTOs"...).
-STAT_ROLES: tuple[tuple[ComponentRole, str], ...] = (
-    (ComponentRole.ENTITY, "Entities"),
-    (ComponentRole.CONTROLLER, "Controllers"),
-    (ComponentRole.SERVICE, "Services"),
-    (ComponentRole.REPOSITORY, "Repositories"),
+STAT_ROLES: tuple[ComponentRole, ...] = (
+    ComponentRole.ENTITY, ComponentRole.CONTROLLER, ComponentRole.SERVICE, ComponentRole.REPOSITORY,
 )
 EXTRA_ROLES: tuple[ComponentRole, ...] = (
     ComponentRole.DTO, ComponentRole.ENUM, ComponentRole.EXCEPTION, ComponentRole.CONFIGURATION,
     ComponentRole.UTILITY, ComponentRole.MAPPER, ComponentRole.COMPONENT, ComponentRole.ANNOTATION,
 )
+# Mismo número de tarjetas: en un proyecto React se reutilizan con otras etiquetas.
+REACT_STAT_ROLES: tuple[ReactRole, ...] = (ReactRole.COMPONENT, ReactRole.HOOK, ReactRole.SERVICE, ReactRole.TYPE)
+REACT_EXTRA_ROLES: tuple[ReactRole, ...] = (ReactRole.ENUM, ReactRole.UTILITY)
 
 
 class DashboardPage(Page):
@@ -145,10 +147,8 @@ class DashboardPage(Page):
         row.setSpacing(12)
         self._files_tile = StatTile("Archivos")
         row.addWidget(self._files_tile)
-        self._role_tiles: dict[ComponentRole, StatTile] = {}
-        for role, label in STAT_ROLES:
-            tile = StatTile(label)
-            self._role_tiles[role] = tile
+        self._role_tiles = [StatTile(role_label(role, plural=True)) for role in STAT_ROLES]
+        for tile in self._role_tiles:
             row.addWidget(tile)
         return row
 
@@ -269,12 +269,16 @@ class DashboardPage(Page):
             return
         self._analysis_bar.hide()
         counts = model.role_counts()
+        is_react = model.info.framework is Framework.REACT
+        stat_roles = REACT_STAT_ROLES if is_react else STAT_ROLES
+        extra_roles = REACT_EXTRA_ROLES if is_react else EXTRA_ROLES
         self._files_tile.set_value(len(model.files))
-        for role, tile in self._role_tiles.items():
+        for role, tile in zip(stat_roles, self._role_tiles, strict=True):
+            tile.set_label(role_label(role, plural=True))
             tile.set_value(counts[role])
 
         self._clear_extras()
-        extras = [(role, counts[role]) for role in EXTRA_ROLES if counts[role]]
+        extras = [(role, counts[role]) for role in extra_roles if counts[role]]
         if extras:
             self._extras_row.addWidget(muted("También encontré:", word_wrap=False))
             for role, count in extras:
@@ -296,7 +300,7 @@ class DashboardPage(Page):
     def _reset_stats(self) -> None:
         self._knowledge.hide()
         self._files_tile.set_value("—")
-        for tile in self._role_tiles.values():
+        for tile in self._role_tiles:
             tile.set_value("—")
         self._clear_extras()
         self._extras.hide()

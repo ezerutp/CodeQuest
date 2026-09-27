@@ -128,6 +128,22 @@ export default function formatName(first: string, last: string): string {
     assert cls.methods[0].return_type == "string"
 
 
+def test_parameter_names_including_destructuring(parser: TreeSitterTypeScriptParser, tmp_path: Path) -> None:
+    sf = _source_file(tmp_path, "Card.tsx", """
+export function Card({ title, size = 1, style: { color }, ...rest }: Props, [first, , second = 2]: Pair,
+                     id?: number, ...tags: string[]) {
+  return <div>{title}</div>;
+}
+""")
+    (cls,) = parser.parse(sf, sf.read_text())
+    assert cls.methods[0].parameters == (
+        "{ title, size, style, ...rest }: Props",
+        "[first, second]: Pair",
+        "id?: number",
+        "...tags: string[]",
+    )
+
+
 def test_detects_react_component(parser: TreeSitterTypeScriptParser, tmp_path: Path) -> None:
     sf = _source_file(tmp_path, "App.tsx", """
 export default function App() {
@@ -168,6 +184,36 @@ export function useData() {
     classes = parser.parse(sf, sf.read_text())
     assert len(classes) == 1
     assert classes[0].is_hook
+
+
+def test_detects_usual_react_component_shapes(parser: TreeSitterTypeScriptParser, tmp_path: Path) -> None:
+    sf = _source_file(tmp_path, "shapes.tsx", """
+import React, { memo, useState } from 'react';
+export function Card() {
+  return (
+    <div>hi</div>
+  );
+}
+export function Counter() { const [n] = useState(0); return <b>{n}</b>; }
+export const Header = () => <h1>t</h1>;
+const Maybe = ({ ok }: Props) => ok ? <p /> : null;
+export const Item = memo(({ id }: P) => <li>{id}</li>);
+export const Input = React.forwardRef(function Input(props, ref) { return <input ref={ref} />; });
+const useToggle = (initial = false) => { const [v, s] = useState(initial); return [v, () => s(!v)]; };
+export const sum = (a: number, b: number) => a + b;
+export const API_URL = '/api';
+const data = fetchData(() => 1);
+function Etiqueta() { const mapa = useMap(); useEffect(() => {}, [mapa]); return null; }
+""")
+    by_name = {c.name: c for c in parser.parse(sf, sf.read_text())}
+
+    assert set(by_name) == {"Card", "Counter", "Header", "Maybe", "Item", "Input", "useToggle", "sum", "Etiqueta"}
+    components = {n for n, c in by_name.items() if c.is_component}
+    assert components == {"Card", "Counter", "Header", "Maybe", "Item", "Input", "Etiqueta"}  # null + hooks
+    assert {n for n, c in by_name.items() if c.is_hook} == {"useToggle"}  # Counter usa hooks pero es componente
+    assert by_name["Card"].modifiers == ("export",)
+    assert by_name["Item"].methods[0].parameters == ("{ id }: P",)
+    assert (by_name["Card"].start_line, by_name["Card"].end_line) == (3, 7)
 
 
 def test_plain_function_is_neither_component_nor_hook(parser: TreeSitterTypeScriptParser, tmp_path: Path) -> None:
@@ -262,6 +308,11 @@ def test_classifies_enum(react_info: ProjectInfo) -> None:
     enum = _ts_class("Color", TSTypeKind.ENUM)
     roles = analyzer.classify([enum])
     assert roles["Color"] is ReactRole.ENUM
+
+
+def test_component_using_hooks_is_a_component(react_info: ProjectInfo) -> None:
+    app = _ts_class("App", TSTypeKind.FUNCTION, is_component=True, is_hook=True)
+    assert ReactAnalyzer().classify([app])["App"] is ReactRole.COMPONENT
 
 
 def test_classifies_plain_function_as_utility(react_info: ProjectInfo) -> None:

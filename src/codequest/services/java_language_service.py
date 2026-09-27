@@ -18,6 +18,7 @@ from codequest.core.lsp.mirror import sync_mirror
 from codequest.core.lsp.models import (
     CompletionList,
     Diagnostic,
+    LanguageServerCancelled,
     ServerState,
     ServerStatus,
     completion_list,
@@ -43,10 +44,6 @@ SERVER_SETTINGS: dict[str, Any] = {"java": {
 
 ClientFactory = Callable[..., LspClient]
 StatusCallback = Callable[[ServerStatus], None]
-
-
-class LanguageServerCancelled(Exception):
-    pass
 
 
 class JavaLanguageService:

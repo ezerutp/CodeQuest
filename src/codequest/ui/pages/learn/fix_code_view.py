@@ -108,6 +108,7 @@ class FixCodeView(QWidget):
         self._original: str | None = None  # fragmento real; None si no se pudo preparar el ejercicio
         self._mutated = ""
         self._file_text: str | None = None
+        self._file: str | None = None  # ruta del fragmento: elige el resaltado (Java o TypeScript)
         self._first_line = 1
 
         layout = QVBoxLayout(self)
@@ -385,6 +386,7 @@ class FixCodeView(QWidget):
     def _prepare(self, question: Question) -> None:
         ref, mutation = question.snippet, question.mutation
         self._original = self._file_text = None
+        self._file = ref.file
         try:
             snippet = self._load_snippet(ref)
             self._mutated = mutation.apply(snippet.text, snippet.start_line)  # copia en memoria
@@ -399,13 +401,13 @@ class FixCodeView(QWidget):
                 log.warning("Sin contexto del archivo para %s: %s", question.key, exc)
         last = self._first_line + self._mutated.count("\n")
         self._snippet_label.setText(f"{PurePosixPath(ref.file).name}  ·  líneas {self._first_line}–{last}")
-        self._editor.set_code(self._mutated, first_line=self._first_line)
+        self._editor.set_code(self._mutated, first_line=self._first_line, file=self._file)
         lines = min(self._mutated.count("\n") + 1 + EXTRA_LINES, MAX_EDITOR_LINES)
         self._editor.setFixedHeight(lines * self._editor.fontMetrics().lineSpacing() + 26)
 
     def _restore(self) -> None:
         if self._can_answer():
-            self._editor.set_code(self._mutated, first_line=self._first_line)
+            self._editor.set_code(self._mutated, first_line=self._first_line, file=self._file)
 
     def _try(self) -> None:
         """«Probar»: evalúa la versión del estudiante sin registrar la respuesta."""

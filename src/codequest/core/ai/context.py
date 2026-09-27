@@ -47,8 +47,8 @@ class CodeContext:
 class ContextBuilder:
     def __init__(self, model: ProjectModel) -> None:
         self._model = model
-        self._by_name = {c.name: c for c in model.main_classes}
-        self._by_qualified = {c.qualified_name: c for c in model.classes}
+        self._by_name = {c.name: c for c in model.main_java_classes}
+        self._by_qualified = {c.qualified_name: c for c in model.java_classes}
 
     def build(self, class_name: str, snippet: SnippetRef | None) -> CodeContext:
         cls = self._by_qualified.get(class_name)

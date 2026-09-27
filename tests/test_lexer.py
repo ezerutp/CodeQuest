@@ -1,4 +1,4 @@
-from codequest.core.analysis.java.lexer import LineState, TokenKind, tokenize_line
+from codequest.core.analysis.java.lexer import TS_KEYWORDS, LineState, TokenKind, keywords_for, tokenize_line
 
 
 def kinds(line: str, state: LineState = LineState.NORMAL) -> list[tuple[str, TokenKind]]:
@@ -74,3 +74,14 @@ def test_annotation_type_declaration() -> None:
 
 def test_empty_line_keeps_state() -> None:
     assert tokenize_line("", LineState.BLOCK_COMMENT) == ([], LineState.BLOCK_COMMENT)
+
+
+def test_typescript_keywords_and_multiline_template_strings() -> None:
+    assert keywords_for("src/App.tsx") is TS_KEYWORDS and keywords_for("A.java") is not TS_KEYWORDS
+    tokens, state = tokenize_line("const url = `/api/${id}", keywords=TS_KEYWORDS)
+    assert [t.kind for t in tokens] == [TokenKind.KEYWORD, TokenKind.STRING]
+    assert state is LineState.TEMPLATE
+    tokens, state = tokenize_line("/items`; let x", state, TS_KEYWORDS)
+    assert [t.kind for t in tokens] == [TokenKind.STRING, TokenKind.KEYWORD] and state is LineState.NORMAL
+    # En Java, const/let no son palabras clave de uso real, pero `let` no debe colorearse.
+    assert tokenize_line("let x")[0] == []

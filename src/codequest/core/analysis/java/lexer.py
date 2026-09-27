@@ -1,4 +1,4 @@
-"""Tokenizador Java por líneas para el resaltado de sintaxis.
+"""Tokenizador por líneas para el resaltado de sintaxis (Java y, con otras palabras clave, TypeScript).
 
 Trabaja línea a línea porque así lo pide QSyntaxHighlighter: cada línea recibe el
 estado con el que terminó la anterior (dentro de un comentario de bloque o de un
@@ -17,6 +17,21 @@ KEYWORDS = frozenset("""
     non-sealed yield true false null
 """.split())
 
+# Sin get/set: son contextuales y en React aparecen sobre todo como métodos (params.get(…)).
+TS_KEYWORDS = frozenset("""
+    abstract any as async await boolean break case catch class const continue debugger declare default
+    delete do else enum export extends false finally for from function if implements import in
+    infer instanceof interface keyof let namespace never new null number object of private protected
+    public readonly return satisfies static string super switch symbol this throw true try type
+    typeof undefined unknown var void while yield
+""".split())
+_TS_SUFFIXES = (".ts", ".tsx", ".js", ".jsx")
+
+
+def keywords_for(file: str | None) -> frozenset[str]:
+    """Palabras clave según la extensión del archivo; Java por defecto."""
+    return TS_KEYWORDS if file and file.endswith(_TS_SUFFIXES) else KEYWORDS
+
 
 class TokenKind(StrEnum):
     KEYWORD = "keyword"
@@ -31,6 +46,7 @@ class LineState(IntEnum):
     NORMAL = 0
     BLOCK_COMMENT = 1
     TEXT_BLOCK = 2
+    TEMPLATE = 3  # template string de TypeScript: `...` puede ocupar varias líneas
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,16 +60,21 @@ _TOKEN = re.compile(
     r"(?P<line_comment>//.*)"
     r"|(?P<block_comment>/\*)"
     r'|(?P<text_block>""")'
+    r"|(?P<template>`)"
     r'|(?P<string>"(?:\\.|[^"\\])*"?)'
     r"|(?P<char>'(?:\\.|[^'\\])*'?)"
     r"|(?P<annotation>@\s*[A-Za-z_][\w.]*)"
     r"|(?P<number>\b(?:0[xX][\da-fA-F_]+|0[bB][01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)[lLfFdD]?\b)"
     r"|(?P<word>[A-Za-z_$][\w$]*(?:-sealed)?)"
 )
-_CLOSERS = {LineState.BLOCK_COMMENT: ("*/", TokenKind.COMMENT), LineState.TEXT_BLOCK: ('"""', TokenKind.STRING)}
+_CLOSERS = {LineState.BLOCK_COMMENT: ("*/", TokenKind.COMMENT), LineState.TEXT_BLOCK: ('"""', TokenKind.STRING),
+            LineState.TEMPLATE: ("`", TokenKind.STRING)}
+_OPENERS = {"block_comment": LineState.BLOCK_COMMENT, "text_block": LineState.TEXT_BLOCK,
+            "template": LineState.TEMPLATE}
 
 
-def tokenize_line(line: str, state: LineState = LineState.NORMAL) -> tuple[list[Token], LineState]:
+def tokenize_line(line: str, state: LineState = LineState.NORMAL,
+                  keywords: frozenset[str] = KEYWORDS) -> tuple[list[Token], LineState]:
     tokens: list[Token] = []
     pos = 0
 
@@ -69,8 +90,8 @@ def tokenize_line(line: str, state: LineState = LineState.NORMAL) -> tuple[list[
     while (match := _TOKEN.search(line, pos)) is not None:
         group, start = match.lastgroup, match.start()
         pos = match.end()
-        if group in ("block_comment", "text_block"):
-            new_state = LineState.BLOCK_COMMENT if group == "block_comment" else LineState.TEXT_BLOCK
+        if group in _OPENERS:
+            new_state = _OPENERS[group]
             closer, kind = _CLOSERS[new_state]
             end = line.find(closer, pos)
             if end == -1:
@@ -89,7 +110,7 @@ def tokenize_line(line: str, state: LineState = LineState.NORMAL) -> tuple[list[
             tokens.append(Token(start, pos - start, TokenKind.NUMBER))
         elif group == "word":
             word = match.group()
-            if word in KEYWORDS:
+            if word in keywords:
                 tokens.append(Token(start, pos - start, TokenKind.KEYWORD))
             elif word[0].isupper():
                 tokens.append(Token(start, pos - start, TokenKind.TYPE))

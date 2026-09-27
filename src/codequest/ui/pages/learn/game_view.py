@@ -189,7 +189,7 @@ class GameView(QWidget):
         self._snippet_label.setText(
             f"{PurePosixPath(snippet.file).name}  ·  líneas {snippet.start_line}–{snippet.end_line}"
         )
-        self._editor.set_code(snippet.text, first_line=snippet.start_line)
+        self._editor.set_code(snippet.text, first_line=snippet.start_line, file=snippet.file)
         self._editor.highlight_lines(ref.focus_lines, scroll=False)
         lines = min(snippet.line_count, MAX_EDITOR_LINES)
         self._editor.setFixedHeight(lines * self._editor.fontMetrics().lineSpacing() + 26)

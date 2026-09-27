@@ -13,8 +13,8 @@ def concept_problems(concept: Concept) -> list[str]:
     for name in ("id", "title", "summary", "explanation", "analogy", "youtube_query"):
         if not getattr(concept, name).strip():
             problems.append(f"falta el campo '{name}'")
-    if not (concept.matches.annotations or concept.matches.supertypes):
-        problems.append("'matches' debe indicar al menos una anotación o supertipo")
+    if not (concept.matches.annotations or concept.matches.supertypes or concept.matches.calls):
+        problems.append("'matches' debe indicar al menos una anotación, supertipo o llamada")
     problems.extend(answer_problems(concept.summary, concept.distractors))
     return problems
 

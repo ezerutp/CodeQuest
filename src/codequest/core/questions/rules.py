@@ -28,7 +28,7 @@ class AnnotationPurposeRule(QuestionRule):
     """"¿Qué hace @X aquí?" para cada anotación conocida en clases, campos, métodos y parámetros."""
 
     def drafts(self, model: ProjectModel, kb: KnowledgeBase) -> Iterator[QuestionDraft]:
-        for cls in model.main_classes:
+        for cls in model.main_java_classes:
             name = display_name(cls)
             header = _header_snippet(cls)
             for ann in cls.annotations:
@@ -80,7 +80,7 @@ class SupertypeRule(QuestionRule):
     """"¿Qué obtiene UserRepository al extender JpaRepository?"."""
 
     def drafts(self, model: ProjectModel, kb: KnowledgeBase) -> Iterator[QuestionDraft]:
-        for cls in model.main_classes:
+        for cls in model.main_java_classes:
             for supertype in (*cls.interfaces, *([cls.superclass] if cls.superclass else [])):
                 if concept := kb.for_supertype(simple_type_name(supertype)):
                     header = _header_snippet(cls)
@@ -104,7 +104,7 @@ class ExplainMethodRule(QuestionRule):
     MAX_LINES = 40
 
     def drafts(self, model: ProjectModel, kb: KnowledgeBase) -> Iterator[QuestionDraft]:
-        for cls in model.main_classes:
+        for cls in model.main_java_classes:
             name = display_name(cls)
             for method in cls.methods:
                 lines = method.end_line - method.start_line + 1

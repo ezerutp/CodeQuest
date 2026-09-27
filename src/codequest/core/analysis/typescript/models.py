@@ -21,6 +21,19 @@ class TSSourceSpan:
     end_line: int
     end_column: int
 
+    @property
+    def is_single_line(self) -> bool:
+        return self.line == self.end_line
+
+
+@dataclass(frozen=True, slots=True)
+class TSCall:
+    """Una llamada dentro de una función: `useState(0)`, `queryClient.invalidateQueries(…)`."""
+
+    name: str  # "useState", "invalidateQueries"
+    receiver: str | None  # "queryClient", "React"; None si es una llamada directa
+    name_span: TSSourceSpan  # posición del nombre, para las mutaciones
+
 
 @dataclass(frozen=True, slots=True)
 class TSField:
@@ -40,6 +53,7 @@ class TSMethod:
     start_line: int
     end_line: int
     has_body: bool = True
+    calls: tuple[TSCall, ...] = ()  # en orden de aparición, incluidas las de callbacks internos
 
 
 @dataclass(frozen=True, slots=True)

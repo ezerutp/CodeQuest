@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from codequest.core.analysis.java.syntax import syntax_error_lines, tokens, tokens_by_line
 from codequest.core.analysis.model import ProjectModel
 from codequest.core.analysis.snippets import SnippetRef
+from codequest.core.analysis.syntax import syntax_error_lines, tokens, tokens_by_line
 from codequest.core.games.base import Outcome
 from codequest.core.games.catalog import FIX_CODE, mode_info
 from codequest.core.games.fix_code import CodeFix, FixCodeMode, FixKind, check_fix
@@ -123,3 +123,28 @@ def test_checking_fixes_never_touches_the_project(service: ProjectService, model
         original, mutated, check = _fix(service, model, question)
         check(original), check(mutated), check(original + " {")
     assert digest() == before
+
+
+# --- TypeScript / React --------------------------------------------------------------------
+
+def test_fixing_a_react_hook_uses_the_typescript_grammar(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text('{"dependencies": {"react": "^18.0.0"}}')
+    (tmp_path / "Counter.tsx").write_text(
+        "import { useState } from 'react';\n"
+        "export function Counter() {\n"
+        "  const [n, setN] = useState(0);\n"
+        "  return <button onClick={() => setN(n + 1)}>{n}</button>;\n"
+        "}\n")
+    service = ProjectService()
+    react = service.analyze(service.detect(tmp_path))
+    question = _question(react, ":useState")
+    original, mutated, check = _fix(service, react, question)
+    assert "useRef(0)" in mutated
+
+    assert check(original).kind is FixKind.FIXED
+    assert check(original.replace("useState(0);", "useState(0); // listo")).kind is FixKind.FIXED
+    assert check(mutated).kind is FixKind.UNCHANGED
+    broken = check(original.replace("<button", "<button <"))
+    assert broken.kind is FixKind.SYNTAX_ERROR and broken.error_line == 4
+    # Con la gramática de Java todo el JSX sería un error: no debe haber falsos positivos.
+    assert check(original.replace("setN(n + 1)", "setN(n + 2)")).kind is FixKind.OTHER_CHANGES

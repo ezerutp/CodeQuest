@@ -195,7 +195,7 @@ class FindErrorView(QWidget):
             text, first, last = f"// No se pudo leer {ref.file}: {exc}", 1, 1
         self._snippet_label.setText(f"{PurePosixPath(ref.file).name}  ·  líneas {first}–{last}")
         self._loading = True
-        self._editor.set_code(text, first_line=first)
+        self._editor.set_code(text, first_line=first, file=ref.file)
         self._loading = False
         lines = min(text.count("\n") + 1, MAX_EDITOR_LINES)
         self._editor.setFixedHeight(lines * self._editor.fontMetrics().lineSpacing() + 26)
