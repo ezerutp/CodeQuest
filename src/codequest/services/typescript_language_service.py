@@ -7,6 +7,7 @@ espejo porque el servidor de TypeScript no escribe archivos en el proyecto.
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,8 @@ log = logging.getLogger(__name__)
 READY_TIMEOUT_S = 60
 COMPLETION_TIMEOUT_S = 10
 DIAGNOSTICS_WAIT_S = 5.0
+FIRST_DIAGNOSTICS_WAIT_S = 45.0
+SETTLE_S = 1.5  # sin publicaciones nuevas durante este tiempo, los errores están completos
 
 ClientFactory = Callable[..., LspClient]
 StatusCallback = Callable[[ServerStatus], None]
@@ -87,6 +90,8 @@ class TypeScriptLanguageService:
                 self._versions = {}
                 self._client.request("initialize", _initialize_params(project_root), timeout=READY_TIMEOUT_S)
                 self._client.notify("initialized", {})
+                # A diferencia de jdtls, no envía ningún aviso de "listo": lo está al responder a initialize.
+                self._ready.set()
             except (OSError, ValueError, LspError) as exc:
                 log.warning("No se pudo iniciar typescript-language-server: %s", exc)
                 self.stop()
@@ -123,8 +128,19 @@ class TypeScriptLanguageService:
             if self._send_document(relative_path, text) is None:
                 return None
         with self._published:
-            self._published.wait_for(lambda: self._publications.get(uri, 0) > seen, timeout=wait)
-            return self._diagnostics.get(uri, ())
+            if not self._publications:  # la primera vez tsserver carga todo el proyecto (~15 s en uno mediano)
+                wait = max(wait, FIRST_DIAGNOSTICS_WAIT_S)
+            deadline = time.monotonic() + wait
+            if not self._published.wait_for(lambda: self._client is None or self._publications.get(uri, 0) > seen,
+                                            timeout=wait) or self._client is None:
+                return None  # sin respuesta o detenido: mejor "no sé" que errores viejos
+            # Publica en dos tandas: primero la sintaxis y ~1 s después la semántica. Se espera a que se calme.
+            while (count := self._publications.get(uri, 0)) and (left := deadline - time.monotonic()) > 0:
+                if not self._published.wait_for(
+                        lambda: self._client is None or self._publications.get(uri, 0) > count,
+                        timeout=min(SETTLE_S, left)):
+                    break
+            return None if self._client is None else self._diagnostics.get(uri, ())
 
     def stop(self) -> None:
         with self._lock:
@@ -135,6 +151,7 @@ class TypeScriptLanguageService:
             with self._published:
                 self._diagnostics.clear()
                 self._publications.clear()
+                self._published.notify_all()  # despierta a quien espera errores: si no, bloquea el cierre
         if client is not None:
             client.close(timeout=3)
             if self._status.state in (ServerState.STARTING, ServerState.READY):
@@ -152,7 +169,7 @@ class TypeScriptLanguageService:
         self._versions[uri] = version
         if version == 1:
             client.notify("textDocument/didOpen", {"textDocument": {
-                "uri": uri, "languageId": "typescript", "version": version, "text": text}})
+                "uri": uri, "languageId": _language_id(relative_path), "version": version, "text": text}})
         else:
             client.notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": version},
                                                      "contentChanges": [{"text": text}]})
@@ -176,7 +193,7 @@ class TypeScriptLanguageService:
         return self._set_status(ServerStatus(ServerState.READY))
 
     def _on_notification(self, method: str, params: Any) -> None:
-        """Hilo lector del cliente LSP: cuándo está listo y los errores publicados."""
+        """Hilo lector del cliente LSP: los errores publicados."""
         if not isinstance(params, dict):
             return
         if method == "textDocument/publishDiagnostics":
@@ -186,12 +203,6 @@ class TypeScriptLanguageService:
                 self._publications[uri] = self._publications.get(uri, 0) + 1
                 self._published.notify_all()
             return
-        # typescript-language-server no envía un evento "listo" como jdtls;
-        # consideramos que está listo cuando responde al initialize
-        if method == "window/logMessage":
-            message = str(params.get("message", ""))
-            if "Initializing" in message or "ready" in message.lower():
-                self._ready.set()
 
     def _set_status(self, status: ServerStatus) -> ServerStatus:
         changed = status != self._status
@@ -203,10 +214,18 @@ class TypeScriptLanguageService:
         return status
 
 
+def _language_id(relative_path: str) -> str:
+    """Con "typescript", tsserver lee un .tsx como TS puro y todo el JSX sale como error de sintaxis."""
+    return {".tsx": "typescriptreact", ".jsx": "javascriptreact", ".js": "javascript"}.get(
+        Path(relative_path).suffix, "typescript")
+
+
 def _initialize_params(project_root: Path) -> dict[str, Any]:
     return {
         "processId": None,
         "rootUri": project_root.as_uri(),
         "workspaceFolders": [{"uri": project_root.as_uri(), "name": project_root.name}],
-        "capabilities": {"textDocument": {"completion": {"completionItem": {"snippetSupport": False}}}},
+        # Sin publishDiagnostics declarado, typescript-language-server no publica ningún error.
+        "capabilities": {"textDocument": {"completion": {"completionItem": {"snippetSupport": False}},
+                                          "publishDiagnostics": {}}},
     }

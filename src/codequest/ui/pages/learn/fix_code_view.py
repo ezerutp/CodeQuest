@@ -233,7 +233,7 @@ class FixCodeView(QWidget):
     # --- sugerencias (jdtls, opcional) --------------------------------------------------
 
     def set_language_server_ready(self, ready: bool) -> None:
-        """jdtls listo (o no): sugerencias en el editor y errores de compilación en «Probar»."""
+        """Servidor de lenguaje listo (o no): sugerencias en el editor y errores de compilación en «Probar»."""
         self._completion_available = ready and self._complete is not None
         self._editor.set_completion_enabled(self._completion_available)
         self._compiler_ready = ready and self._diagnose is not None
@@ -246,7 +246,7 @@ class FixCodeView(QWidget):
         return HINT + (COMPLETION_HINT if self._completion_available else "")
 
     def _request_completions(self, token: int) -> None:
-        """El editor pide sugerencias: se le envían a jdtls con el fragmento editado dentro de su
+        """El editor pide sugerencias: se le envían al servidor de lenguaje con el fragmento editado dentro de su
         archivo (en memoria) y la posición real del cursor en ese archivo."""
         complete, question = self._complete, self._session.current if self._session else None
         if complete is None or question is None or self._original is None or self._file_text is None:
@@ -311,14 +311,16 @@ class FixCodeView(QWidget):
             self._baseline = baseline
         if token != self._trial_token or self._trial.isHidden() or not self._can_answer():
             return
-        if baseline is None or current is None:  # jdtls dejó de estar listo
+        if baseline is None or current is None:  # el servidor de lenguaje dejó de estar listo
             self._compile_note.hide()
         elif errors := new_errors(current, baseline, self._first_line, line_count):
             first = errors[0]
             more = f" (y {len(errors) - 1} más)" if len(errors) > 1 else ""
             self._show_trial("danger", f"Error de compilación en la línea {first.line}{more}: «{first.message}».",
                              first.line)
-            self._compile_note.setText("Lo dice el compilador de Java (jdtls).")
+            typescript = (self._file or "").endswith((".ts", ".tsx", ".js", ".jsx"))
+            self._compile_note.setText(
+                f"Lo dice el compilador de {'TypeScript (tsserver)' if typescript else 'Java (jdtls)'}.")
         else:
             self._compile_note.setText("El compilador no encontró errores nuevos.")
         self.content_changed.emit()

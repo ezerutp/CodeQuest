@@ -25,7 +25,7 @@ from codequest.core.games.base import Evaluation
 from codequest.core.games.catalog import MULTIPLE_CHOICE, mode_info
 from codequest.core.knowledge.models import ConceptSource
 from codequest.core.lsp.jdtls import DOWNLOAD_SIZE_MB, JDTLS_VERSION, MIN_JAVA_VERSION
-from codequest.core.lsp.models import LanguageServerCancelled, ServerState, ServerStatus
+from codequest.core.lsp.models import CompletionList, Diagnostic, LanguageServerCancelled, ServerState, ServerStatus
 from codequest.core.persistence.progress import project_id_for
 from codequest.core.project.models import Framework, Language, ProjectInfo
 from codequest.core.settings import Settings, SettingsStore
@@ -89,11 +89,11 @@ class MainWindow(QMainWindow):
         self._dashboard.concepts_requested.connect(lambda: self.show_page(PageId.CONCEPTS))
         self._add_page(PageId.HOME, self._dashboard)
 
-        # El LSP depende del lenguaje: Java usa jdtls, TypeScript/React usa typescript-language-server
-        active_ls = ts_ls if context.project.language is Language.TYPESCRIPT else java_ls
+        # El LSP se elige en cada llamada (no al crear la ventana): el proyecto puede cambiar de Java a React.
+        has_ls = java_ls is not None or ts_ls is not None
         self._learn = LearnPage(load_snippet=lambda ref: service.read_snippet(self._model, ref),
-                                complete=active_ls.complete if active_ls is not None else None,
-                                diagnose=active_ls.diagnostics if active_ls is not None else None)
+                                complete=self._complete if has_ls else None,
+                                diagnose=self._diagnose if has_ls else None)
         self._learn.mode_selected.connect(self._start_mode)
         self._learn.play_again.connect(lambda: self._start_round(self._last_scope, self._last_mode))
         self._learn.go_home.connect(lambda: self.show_page(PageId.HOME))
@@ -286,10 +286,7 @@ class MainWindow(QMainWindow):
         if project is None:
             self._stop_all_language_servers()
             return
-        if project.language is Language.TYPESCRIPT:
-            service = self._ts_ls
-        else:
-            service = self._java_ls
+        service = self._active_language_service()
         if service is None:
             return
         project_id = project_id_for(project)
@@ -303,10 +300,24 @@ class MainWindow(QMainWindow):
 
         self._run_language_task(start)
 
+    def _active_language_service(self) -> JavaLanguageService | TypeScriptLanguageService | None:
+        """jdtls para Java, typescript-language-server para TypeScript/React."""
+        return self._ts_ls if self._context.project.language is Language.TYPESCRIPT else self._java_ls
+
+    def _complete(self, relative_path: str, text: str, line: int, column: int) -> CompletionList:
+        """Hilo del worker de sugerencias."""
+        service = self._active_language_service()
+        return service.complete(relative_path, text, line, column) if service is not None else CompletionList()
+
+    def _diagnose(self, relative_path: str, text: str) -> tuple[Diagnostic, ...] | None:
+        service = self._active_language_service()
+        return service.diagnostics(relative_path, text) if service is not None else None
+
     def _stop_all_language_servers(self) -> None:
         for service in (self._java_ls, self._ts_ls):
-            if service is not None:
-                self._run_language_task(lambda _progress, _cancel: (service.stop(), service.check())[1])
+            if service is not None:  # `service=service`: cada tarea con su servicio, no el último del bucle
+                self._run_language_task(
+                    lambda _progress, _cancel, service=service: (service.stop(), service.check())[1])
 
     def _run_language_task(self, function: TaskFunction) -> None:
         if self._ls_task.is_running:  # p. ej. otro proyecto mientras jdtls arrancaba
@@ -554,12 +565,14 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (API de Qt)
         self._runner.shutdown()
+        # Primero los servidores: despiertan a los hilos que esperan sugerencias o errores.
+        for language_service in (self._java_ls, self._ts_ls):  # y sin esto, el proceso queda huérfano
+            if language_service is not None:
+                language_service.stop()
         self._ai_task.shutdown()
         self._explain_task.shutdown()
         self._grade_task.shutdown()
         self._learn.shutdown()
         self._ls_install.shutdown()
         self._ls_task.shutdown()
-        if self._java_ls is not None:
-            self._java_ls.stop()
         super().closeEvent(event)

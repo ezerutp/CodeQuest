@@ -145,8 +145,9 @@ class JavaLanguageService:
             if self._send_document(relative_path, text) is None:
                 return None
         with self._published:
-            self._published.wait_for(lambda: self._publications.get(uri, 0) > seen, timeout=wait)
-            return self._diagnostics.get(uri, ())
+            self._published.wait_for(lambda: self._client is None or self._publications.get(uri, 0) > seen,
+                                     timeout=wait)
+            return None if self._client is None else self._diagnostics.get(uri, ())
 
     def stop(self) -> None:
         with self._lock:
@@ -156,6 +157,7 @@ class JavaLanguageService:
             with self._published:
                 self._diagnostics.clear()
                 self._publications.clear()
+                self._published.notify_all()  # despierta a quien espera errores: si no, bloquea el cierre
         if client is not None:
             client.close(timeout=3)
             if self._status.state in (ServerState.STARTING, ServerState.READY):

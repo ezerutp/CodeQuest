@@ -1,11 +1,13 @@
 """Servidor LSP falso para los tests: responde como jdtls a lo mínimo que usa CodeQuest.
 
-Modos (primer argumento): "ok" (normal), "crash" (se cierra tras initialize), "silent" (nunca está listo).
+Modos (primer argumento): "ok" (normal), "crash" (se cierra tras initialize), "silent" (nunca está listo),
+"ts" (como typescript-language-server: sin aviso de "listo"; publica la sintaxis y luego la semántica).
 Escribe en stdout solo mensajes LSP; lo recibido se anota en el archivo del segundo argumento.
 """
 
 import json
 import sys
+import time
 
 MODE = sys.argv[1] if len(sys.argv) > 1 else "ok"
 RECEIVED = open(sys.argv[2], "a", encoding="utf-8") if len(sys.argv) > 2 else None  # noqa: SIM115
@@ -33,6 +35,16 @@ def send(message):
 
 documents = {}
 had_errors = set()
+
+
+def publish_ts(uri):
+    """Como typescript-language-server: dos tandas, la sintaxis (vacía) y ~0,3 s después la semántica."""
+    send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"uri": uri, "diagnostics": []}})
+    time.sleep(0.3)
+    errors = [{"range": {"start": {"line": i, "character": 0}, "end": {"line": i, "character": 1}},
+               "severity": 1, "message": "Cannot find name 'useStat'."}
+              for i, line in enumerate(documents[uri].split("\n")) if "useStat(" in line]
+    send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"uri": uri, "diagnostics": errors}})
 
 
 def publish(uri):
@@ -64,10 +76,10 @@ while (message := read()) is not None:
         send({"jsonrpc": "2.0", "method": "language/status", "params": {"type": "ServiceReady"}})
     elif method == "textDocument/didOpen":
         documents[message["params"]["textDocument"]["uri"]] = message["params"]["textDocument"]["text"]
-        publish(message["params"]["textDocument"]["uri"])
+        (publish_ts if MODE == "ts" else publish)(message["params"]["textDocument"]["uri"])
     elif method == "textDocument/didChange":
         documents[message["params"]["textDocument"]["uri"]] = message["params"]["contentChanges"][0]["text"]
-        publish(message["params"]["textDocument"]["uri"])
+        (publish_ts if MODE == "ts" else publish)(message["params"]["textDocument"]["uri"])
     elif method == "textDocument/completion":
         uri = message["params"]["textDocument"]["uri"]
         position = message["params"]["position"]
