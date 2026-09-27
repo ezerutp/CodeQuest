@@ -203,3 +203,15 @@ def test_method_calls_in_order_without_anonymous_classes(shop_project: Path) -> 
     config, _ = parse(shop_project, f"{BASE}/config/SecurityConfig.java")
     encoder = config.methods[0]
     assert all(c.name != "encode" for c in encoder.calls)  # está dentro de una clase anónima
+
+
+def test_large_file_does_not_corrupt_point_integers() -> None:
+    # tree-sitter 0.26.0 restaba una referencia por cada lectura de Point.row/column; con más de
+    # 256 líneas los enteros dejan de ser inmortales y el proceso acababa en segfault.
+    methods = "".join(f"    void m{i}() {{ helper({i}); }}\n" for i in range(400))
+    classes = parse_text(f"class Big {{\n{methods}}}\n")
+
+    for _ in range(5):  # varias pasadas: con el bug, la segunda ya reutilizaba enteros liberados
+        classes = parse_text(f"class Big {{\n{methods}}}\n")
+    assert len(classes[0].methods) == 400
+    assert classes[0].methods[-1].calls[0].name_span.line == 401
