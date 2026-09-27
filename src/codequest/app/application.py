@@ -22,6 +22,7 @@ from codequest.services.knowledge_service import KnowledgeService
 from codequest.services.learning_service import LearningService
 from codequest.services.progress_service import ProgressService
 from codequest.services.project_service import ProjectService
+from codequest.ui.dialogs import pick_project
 
 log = logging.getLogger(__name__)
 
@@ -69,10 +70,14 @@ def main(argv: list[str] | None = None) -> int:
     root = args.path if args.path else Path.cwd()
     service = ProjectService()
     try:
-        project = service.detect(root)
+        projects = service.discover(root)
     except OSError as exc:
         print(f"{APP_SLUG}: {exc}", file=sys.stderr)
         return 2
+    project = pick_project(None, projects)
+    if project is None:
+        log.info("Usuario canceló la selección de proyecto")
+        return 0
 
     context = AppContext(project=project, ai=detect_ai_status())
     user_knowledge = knowledge_dir()

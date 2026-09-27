@@ -44,6 +44,10 @@ class ProjectService:
     def detect(self, root: Path) -> ProjectInfo:
         return self._detector.detect(root)
 
+    def discover(self, root: Path) -> list[ProjectInfo]:
+        """Descubre todos los proyectos dentro de un árbol (p. ej. backend/ + frontend/)."""
+        return self._detector.detect_all(root)
+
     def analyze(
         self,
         info: ProjectInfo,
