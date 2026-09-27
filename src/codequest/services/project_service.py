@@ -12,8 +12,11 @@ from codequest.core.analysis.java.conventions import JavaConventionsAnalyzer
 from codequest.core.analysis.java.models import JavaClass
 from codequest.core.analysis.java.parser import TreeSitterJavaParser
 from codequest.core.analysis.model import ProjectModel
+from codequest.core.analysis.react.analyzer import ReactAnalyzer
 from codequest.core.analysis.snippets import CodeSnippet, SnippetRef, read_snippet
 from codequest.core.analysis.spring.analyzer import SpringBootAnalyzer
+from codequest.core.analysis.typescript.models import TSClass
+from codequest.core.analysis.typescript.parser import TreeSitterTypeScriptParser
 from codequest.core.project.detector import ProjectDetector
 from codequest.core.project.models import Framework, ProjectInfo
 from codequest.core.project.scanner import ProjectScanner
@@ -37,9 +40,9 @@ class ProjectService:
     ) -> None:
         self._detector = detector or ProjectDetector()
         self._scanner = scanner or ProjectScanner()
-        self._parsers = tuple(parsers or (TreeSitterJavaParser(),))
+        self._parsers = tuple(parsers or (TreeSitterJavaParser(), TreeSitterTypeScriptParser()))
         # El primero que soporte el proyecto gana; el último debe aceptar cualquiera.
-        self._analyzers = tuple(analyzers or (SpringBootAnalyzer(), JavaConventionsAnalyzer()))
+        self._analyzers = tuple(analyzers or (SpringBootAnalyzer(), ReactAnalyzer(), JavaConventionsAnalyzer()))
 
     def detect(self, root: Path) -> ProjectInfo:
         return self._detector.detect(root)
@@ -58,7 +61,8 @@ class ProjectService:
         scan = self._scanner.scan(info.root)
         self._check(cancel)
 
-        classes: list[JavaClass] = []
+        from codequest.core.analysis.model import AnyClass
+        classes: list[AnyClass] = []
         errors: list[str] = []
         total = len(scan.files)
         for index, file in enumerate(scan.files, start=1):
@@ -103,10 +107,16 @@ class ProjectService:
         return read_snippet(model.info.root, ref.file, ref.start_line, ref.end_line)
 
     @staticmethod
-    def _refine_framework(info: ProjectInfo, classes: Sequence[JavaClass]) -> ProjectInfo:
-        """Detecta Spring Boot por @SpringBootApplication si el build file no lo reveló (multi-módulo)."""
-        if info.framework is Framework.NONE and any(c.has_annotation("SpringBootApplication") for c in classes):
-            return replace(info, framework=Framework.SPRING_BOOT)
+    def _refine_framework(info: ProjectInfo, classes: Sequence) -> ProjectInfo:
+        """Detecta Spring Boot por @SpringBootApplication o React por componentes/hooks."""
+        if info.framework is Framework.NONE:
+            for c in classes:
+                if isinstance(c, JavaClass):
+                    if c.has_annotation("SpringBootApplication"):
+                        return replace(info, framework=Framework.SPRING_BOOT)
+                elif isinstance(c, TSClass):
+                    if c.is_component or c.is_hook:
+                        return replace(info, framework=Framework.REACT)
         return info
 
     @staticmethod

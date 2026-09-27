@@ -332,11 +332,11 @@ Estado: ✅ servidor de lenguaje Java con jdtls (GCQ-23) · ✅ sugerencias en e
 
 ### v0.5 — "Multi-proyecto + React"
 
-Estado: ✅ discovery multi-proyecto y detección de React (GCQ-26) · ✅ diálogo de selección (GCQ-27).
+Estado: ✅ discovery multi-proyecto y detección de React (GCQ-26) · ✅ diálogo de selección (GCQ-27) · ✅ parser TS/TSX y ReactAnalyzer (GCQ-28).
 - `ProjectDetector.detect_all()` descubre subproyectos (backend Spring Boot + frontend React) en un mismo árbol.
 - `Language.TYPESCRIPT`, `Framework.REACT`: detección vía `package.json` y archivos `.ts`/`.tsx`.
 - Diálogo de selección cuando hay múltiples proyectos (GCQ-27).
-- Análisis TypeScript/React: parser tree-sitter, `ReactAnalyzer`, preguntas sobre componentes/hooks (GCQ-28).
+- Análisis TypeScript/React: `TreeSitterTypeScriptParser` (tree-sitter-typescript), `ReactAnalyzer` con roles (Component, Hook, Service, Type, Enum, Utility), detección de componentes por retorno de JSX y hooks por llamadas a useState/useEffect/etc.
 
 ---
 

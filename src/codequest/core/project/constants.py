@@ -9,9 +9,10 @@ IGNORED_DIRS: Final[frozenset[str]] = frozenset({
     "node_modules", "__pycache__", ".venv", "venv",
 })
 
-# Extensiones relevantes para el MVP (Java / Spring Boot).
+# Extensiones relevantes (Java / Spring Boot / TypeScript / React).
 RELEVANT_EXTENSIONS: Final[frozenset[str]] = frozenset({
     ".java", ".xml", ".gradle", ".kts", ".properties", ".yml", ".yaml",
+    ".ts", ".tsx", ".js", ".jsx",
 })
 
 # Archivos de build más grandes que esto no se leen durante la detección.
